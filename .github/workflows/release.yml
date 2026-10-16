@@ -42,13 +42,16 @@ jobs:
       - name: 发布自包含版本（win-x64）
         shell: bash
         run: |
+          set -euo pipefail
+          # 刻意不开 PublishReadyToRun：它只影响首次启动的零点几秒，
+          # 却要求 SDK 具备 win-x64 的运行时包，多一个可能让首次发版直接失败的环节。
+          # 发版链路稳不稳比这点启动开销重要得多。
           dotnet publish src/StarCore.Desktop/StarCore.Desktop.csproj \
             -c Release \
             -r win-x64 \
             --self-contained true \
             -o out/selfcontained \
             -p:DebugType=none \
-            -p:PublishReadyToRun=true \
             -p:RunAnalyzers=false \
             -m:1
 
@@ -67,10 +70,44 @@ jobs:
       - name: 打包
         shell: bash
         run: |
+          set -euo pipefail
           cd out/selfcontained
-          7z a -tzip ../../out/StarCore-win-x64-selfcontained.zip . > /dev/null
+
+          # 优先 7z（压缩率高、Windows runner 自带）；没有就退回 PowerShell 的
+          # Compress-Archive。两条路都失败就明确报错退出，绝不产出一个空的资产 ——
+          # 发版失败要看得见，而不是发一个 0 字节的 zip 出去。
+          if command -v 7z > /dev/null 2>&1; then
+            echo "使用 7z 打包"
+            7z a -tzip ../../out/StarCore-win-x64-selfcontained.zip . > /dev/null
+          else
+            echo "未找到 7z，改用 Compress-Archive"
+            powershell -NoProfile -Command \
+              "Compress-Archive -Path 'out/selfcontained/*' -DestinationPath 'out/StarCore-win-x64-selfcontained.zip' -Force"
+          fi
+
           cd ../..
+          test -f out/StarCore-win-x64-selfcontained.zip
+          SIZE=$(stat -c %s out/StarCore-win-x64-selfcontained.zip)
+          echo "压缩包大小：$((SIZE/1024/1024)) MB"
+          if [ "$SIZE" -lt 10485760 ]; then
+            echo "::error::压缩包小于 10MB，自包含包不可能这么小，打包步骤有问题"
+            exit 1
+          fi
           ls -lh out/*.zip
+
+      - name: 校验压缩包里确实有可执行文件与界面资源
+        shell: bash
+        run: |
+          set -euo pipefail
+          if command -v 7z > /dev/null 2>&1; then
+            7z l out/StarCore-win-x64-selfcontained.zip > /tmp/ziplist.txt
+          else
+            powershell -NoProfile -Command \
+              "Add-Type -A System.IO.Compression.FileSystem; [IO.Compression.ZipFile]::OpenRead('out/StarCore-win-x64-selfcontained.zip').Entries | ForEach-Object { \$_.FullName }" > /tmp/ziplist.txt
+          fi
+          grep -q 'StarCore.exe' /tmp/ziplist.txt || { echo "::error::压缩包里没有 StarCore.exe"; exit 1; }
+          grep -q 'wwwroot/index.html' /tmp/ziplist.txt || { echo "::error::压缩包里没有界面资源"; exit 1; }
+          echo "包内文件数：$(wc -l < /tmp/ziplist.txt)"
 
       - name: 创建 Release 并上传
         uses: softprops/action-gh-release@v2
