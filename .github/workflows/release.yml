@@ -1,0 +1,96 @@
+# ============================================================================
+#  打标签即发版
+#
+#  dist/ 里入库的那份是**框架依赖**版本（体积小、clone 快，但要求先装
+#  .NET 10 桌面运行时）。这里额外产出一份**自包含**版本并挂到 Release 上 ——
+#  自包含版双击就能跑，不需要用户装任何东西，是给普通玩家的那一份。
+#
+#  两者都提供，而不是二选一：仓库要能被快速 clone，玩家要能不装环境就能跑。
+# ============================================================================
+
+name: release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  release:
+    runs-on: windows-latest
+
+    steps:
+      - name: 检出
+        uses: actions/checkout@v4
+
+      - name: 安装 .NET 10 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: 前端静态检查
+        shell: bash
+        run: ./check-web.sh
+
+      - name: 发布自包含版本（win-x64）
+        shell: bash
+        run: |
+          dotnet publish src/StarCore.Desktop/StarCore.Desktop.csproj \
+            -c Release \
+            -r win-x64 \
+            --self-contained true \
+            -o out/selfcontained \
+            -p:DebugType=none \
+            -p:PublishReadyToRun=true \
+            -p:RunAnalyzers=false \
+            -m:1
+
+      # 自包含发布不会自动带上 wwwroot（项目里用的是 robocopy 目标，
+      # 只在 Build/Publish 之后跑）。漏了它发出去的包就是个空壳。
+      - name: 确认界面资源在包里
+        shell: bash
+        run: |
+          if [ ! -f out/selfcontained/wwwroot/index.html ]; then
+            echo "界面资源缺失，正在补齐…"
+            cp -r src/StarCore.Desktop/wwwroot out/selfcontained/
+          fi
+          test -f out/selfcontained/wwwroot/index.html
+          test -f out/selfcontained/StarCore.exe
+
+      - name: 打包
+        shell: bash
+        run: |
+          cd out/selfcontained
+          7z a -tzip ../../out/StarCore-win-x64-selfcontained.zip . > /dev/null
+          cd ../..
+          ls -lh out/*.zip
+
+      - name: 创建 Release 并上传
+        uses: softprops/action-gh-release@v2
+        with:
+          files: out/StarCore-win-x64-selfcontained.zip
+          generate_release_notes: true
+          draft: false
+          body: |
+            ## 下载
+
+            下载下面的 `StarCore-win-x64-selfcontained.zip`，解压后双击 `StarCore.exe` 即可，
+            **无需安装 .NET 或任何运行时**。
+
+            > 界面依赖 WebView2 运行时。Windows 10/11 通常已自带；若提示缺失，
+            > 安装一次 [WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/) 即可。
+
+            ## 校验
+
+            介意来源的话，可以直接用源码自行构建：
+            ```
+            ./build.sh Release run
+            ```
+            完整构建说明见仓库 README。

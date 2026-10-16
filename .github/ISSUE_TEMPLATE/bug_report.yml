@@ -1,0 +1,71 @@
+name: 报告问题
+description: 启动器崩溃、启动失败、界面异常、功能不符合预期
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢反馈。请务必填完下面每一项 —— 启动器类问题里，
+        **九成以上的"玄学"都靠日志一句话定位**，而缺了日志就只能靠猜。
+
+  - type: input
+    id: version
+    attributes:
+      label: 启动器版本
+      description: 在「设置 → 关于」页可以看到，形如 1.0.0。也可在日志首行找到。
+      placeholder: 1.0.0
+    validations:
+      required: true
+
+  - type: dropdown
+    id: source
+    attributes:
+      label: 你用的是哪一份
+      options:
+        - Release 发布的自包含包
+        - 自己从源码构建的
+        - 不确定
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: 系统版本
+      placeholder: Windows 11 24H2 (26100)
+    validations:
+      required: true
+
+  - type: textarea
+    id: what
+    attributes:
+      label: 你做了什么 / 期望什么 / 实际发生了什么
+      description: 按时间顺序写。如果只是某一步有问题，请把前面的步骤也写清楚。
+      placeholder: |
+        1. 在「下载」页安装了 1.21.1
+        2. 回到启动页点「启动游戏」
+        3. 期望进入游戏；实际弹窗提示"该实例的安装不完整"
+    validations:
+      required: true
+
+  - type: textarea
+    id: log
+    attributes:
+      label: 日志
+      description: |
+        **这一项最重要。** 在「日志」页点「导出诊断报告」，
+        它会把启动器日志、分析结果、游戏日志、崩溃报告打包成一个 zip。
+
+        ⚠️ 报告里的账户令牌已自动脱敏，可以放心贴。但仍请自己扫一眼。
+        直接把 zip 拖进来，或粘贴关键日志片段（不要只贴最后一行）。
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: 复现率
+      description: 每次都能复现？还是偶发？偶发的话大概多少次出现一次？
+      placeholder: 必现 / 大约 3 次里出现 1 次
+    validations:
+      required: true

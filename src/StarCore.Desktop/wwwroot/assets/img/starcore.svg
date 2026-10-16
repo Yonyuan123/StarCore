@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48" role="img" aria-label="StarCore">
+  <defs>
+    <linearGradient id="sc-body" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0"    stop-color="#3E8CFA"/>
+      <stop offset="0.48" stop-color="#2F7DF6"/>
+      <stop offset="1"    stop-color="#00BCD4"/>
+    </linearGradient>
+    <linearGradient id="sc-gloss" x1="0.15" y1="0" x2="0.6" y2="1">
+      <stop offset="0"   stop-color="#FFFFFF" stop-opacity="0.34"/>
+      <stop offset="0.6" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="sc-depth" cx="0.5" cy="1.06" r="0.72">
+      <stop offset="0"   stop-color="#001B3D" stop-opacity="0.34"/>
+      <stop offset="1"   stop-color="#001B3D" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- 底板：12px 圆角的方块，对应 --r-lg 的视觉比例 -->
+  <rect x="2" y="2" width="44" height="44" rx="12" fill="url(#sc-body)"/>
+  <rect x="2" y="2" width="44" height="44" rx="12" fill="url(#sc-depth)"/>
+  <rect x="2" y="2" width="44" height="44" rx="12" fill="url(#sc-gloss)"/>
+  <rect x="2.9" y="2.9" width="42.2" height="42.2" rx="11.3"
+        fill="none" stroke="#FFFFFF" stroke-opacity="0.26" stroke-width="1.1"/>
+
+  <!-- 星核 -->
+  <path d="M24 8 C25.8 16.4 31.6 22.2 40 24 C31.6 25.8 25.8 31.6 24 40 C22.2 31.6 16.4 25.8 8 24 C16.4 22.2 22.2 16.4 24 8 Z"
+        fill="#FFFFFF" fill-opacity="0.97"/>
+  <path d="M24 8 C25.8 16.4 31.6 22.2 40 24 C31.6 25.8 25.8 31.6 24 40 C22.2 31.6 16.4 25.8 8 24 C16.4 22.2 22.2 16.4 24 8 Z"
+        fill="none" stroke="#001B3D" stroke-opacity="0.10" stroke-width="0.9"/>
+</svg>

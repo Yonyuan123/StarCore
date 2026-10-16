@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    StarCore 无界面诊断工具。
+
+    存在的理由：启动器是 GUI + WebView2，出问题时用户只能截图，而截图既缺信息
+    又没法 grep。这个工具直接复用内核，把"启动一个实例到底会执行什么"原样打印出来，
+    因此任何"启动不了"的报告都可以是一次贴文本、而不是来回猜。
+
+    刻意不加入 StarCore.slnx：它是排查工具，不是产品的一部分，
+    不应该因为它的编译问题挡住正式构建。
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>StarCore.Diag</AssemblyName>
+    <RootNamespace>StarCore.Diag</RootNamespace>
+    <InvariantGlobalization>false</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/StarCore.Core/StarCore.Core.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,397 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>StarCore 自检</title>
+<style>
+  :root { color-scheme: light dark; }
+  body {
+    margin: 0; padding: 24px;
+    font: 13px/1.65 "Microsoft YaHei UI", "Segoe UI", sans-serif;
+    background: #f4f1ea; color: #211e19;
+  }
+  h1 { font-size: 16px; margin: 0 0 4px; }
+  .sub { color: #8c8577; font-size: 12px; margin-bottom: 18px; }
+  .case {
+    background: #fffdf8; border: 1px solid rgba(58,48,34,.13);
+    border-radius: 10px; padding: 12px 14px; margin-bottom: 10px;
+  }
+  .case__head { display: flex; align-items: baseline; gap: 10px; }
+  .case__name { font-weight: 600; }
+  .badge { padding: 1px 8px; border-radius: 99px; font-size: 11px; font-weight: 600; }
+  .pass { background: #dcefe4; color: #2f6f4f; }
+  .fail { background: #f7dbd6; color: #a8332a; }
+  .run  { background: #f0e6d2; color: #9a7420; }
+  pre {
+    margin: 8px 0 0; padding: 9px 11px; background: #f7f4ed;
+    border-radius: 7px; font: 11.5px/1.5 Consolas, monospace;
+    white-space: pre-wrap; word-break: break-all; color: #4a4437;
+    max-height: 220px; overflow: auto;
+  }
+</style>
+</head>
+<body>
+<h1>StarCore 内核接口自检</h1>
+<div class="sub">逐项调用内核方法，验证返回值结构与数据是否真实可用。全部为真实网络请求。</div>
+<div id="out"></div>
+<pre id="boom" style="display:none;background:#f7dbd6;color:#8d2b21;padding:12px;border-radius:9px"></pre>
+
+<script>
+/* 错误陷阱：模块加载失败（import 解析、语法、MIME 类型不符）时页面会一片空白，
+   什么都看不到。这里把错误直接渲染出来，省得靠猜。 */
+(function () {
+  const show = (title, detail) => {
+    const el = document.getElementById('boom');
+    el.style.display = 'block';
+    el.textContent = title + '\n' + detail;
+  };
+  window.addEventListener('error', (e) => {
+    if (e.target && e.target.tagName === 'SCRIPT') {
+      show('脚本加载失败：' + (e.target.src || '(inline)'), '可能是路径不对或 MIME 类型不符');
+      return;
+    }
+    show('运行时错误：' + (e.message || ''), (e.filename || '') + ':' + (e.lineno || '') + '\n' + (e.error && e.error.stack || ''));
+  }, true);
+  window.addEventListener('unhandledrejection', (e) => {
+    show('未处理的 Promise 拒绝', (e.reason && (e.reason.stack || e.reason.message)) || String(e.reason));
+  });
+})();
+</script>
+
+<script type="module">
+import { invoke, hasHost } from './scripts/bridge.js';
+
+const out = document.getElementById('out');
+
+function caseEl(name) {
+  const box = document.createElement('div');
+  box.className = 'case';
+  box.innerHTML = `<div class="case__head"><span class="case__name">${name}</span><span class="badge run">运行中</span></div>`;
+  out.appendChild(box);
+  return box;
+}
+
+function done(box, ok, detail) {
+  box.querySelector('.badge').className = 'badge ' + (ok ? 'pass' : 'fail');
+  box.querySelector('.badge').textContent = ok ? '通过' : '失败';
+  const pre = document.createElement('pre');
+  pre.textContent = detail;
+  box.appendChild(pre);
+}
+
+async function run(name, fn) {
+  const box = caseEl(name);
+  const t0 = performance.now();
+  try {
+    const r = await fn();
+    const ms = Math.round(performance.now() - t0);
+    done(box, r.ok, `${r.detail}\n(${ms} ms)`);
+    return r.ok;
+  } catch (e) {
+    done(box, false, `异常：${e?.message ?? String(e)}`);
+    return false;
+  }
+}
+
+let passed = 0, total = 0;
+const results = [];
+async function check(name, fn) {
+  total++;
+  const ok = await run(name, fn);
+  if (ok) passed++;
+  results.push({ name, ok });
+
+  // 同时写进启动器日志：靠截图核对自检结果既慢又容易看错，
+  // 落盘之后可以直接 grep。这也是 ui.log 这个方法存在的理由。
+  const last = document.querySelectorAll('.case pre');
+  const detail = last.length ? last[last.length - 1].textContent : '';
+  invoke('ui.log', {
+    level: ok ? 'info' : 'warn',
+    message: `[自检 ${ok ? '通过' : '失败'}] ${name} :: ${detail.replace(/\n/g, ' | ')}`,
+  }).catch(() => {});
+}
+
+out.appendChild(Object.assign(document.createElement('div'), {
+  className: 'sub', textContent: '模块已加载，开始执行检查…',
+}));
+
+const hostEl = document.createElement('div');
+hostEl.className = 'sub';
+hostEl.textContent = hasHost ? '运行在 StarCore 宿主内（内核可用）' : '未检测到宿主，内核调用会失败';
+out.appendChild(hostEl);
+
+/* ---------------------------------------------------------------- 1. 一键安装的自动建实例 */
+await check('一键安装：不传实例应自动创建并按 PCL 规则命名', async () => {
+  const name = '自检实例-请忽略';
+  // 用 dryRun 不现实（内核没有这个开关），所以这里用「即将失败」的假版本号：
+  // 实例会被创建，但安装会立刻失败 —— 我们只验证"自动建实例 + 命名"这一段。
+  const r = await invoke('version.install', {
+    versionId: '__selftest_does_not_exist__',
+    loader: 'fabric',
+    loaderVersion: '0.15.0',
+    instanceName: name,
+  });
+  if (!r?.instanceId) return { ok: false, detail: `没有返回 instanceId：${JSON.stringify(r)}` };
+  const list = await invoke('instance.list');
+  const created = (list?.instances ?? []).find((i) => i.id === r.instanceId);
+  if (!created) return { ok: false, detail: '列表里找不到刚创建的实例' };
+
+  const named = created.name === name;
+  const hasCover = !!created.cover;
+  const hasLoaderIcon = !!created.loaderIcon;
+
+  // 清掉这个临时实例
+  await invoke('instance.remove', { id: r.instanceId, deleteFiles: true }).catch(() => {});
+
+  return {
+    ok: named && hasCover && hasLoaderIcon,
+    detail: `instanceId=${r.instanceId}\n实例名=${created.name}（期望 ${name}）\n`
+      + `cover=${created.cover ?? '（空）'}\nloaderIcon=${created.loaderIcon ?? '（空）'}\n`
+      + `created 标记=${r.created}\n清理：已删除该临时实例`,
+  };
+});
+
+/* ---------------------------------------------------------------- 2. 加载器版本列表 */
+for (const [loader, game] of [['fabric', '1.20.1'], ['forge', '1.20.1'], ['neoforge', '1.21.1'], ['quilt', '1.20.1']]) {
+  await check(`加载器版本列表：${loader} @ ${game}`, async () => {
+    const r = await invoke('version.loaders.list', { loader, versionId: game });
+    const vs = r?.versions ?? [];
+    return {
+      ok: vs.length > 0,
+      detail: `条数=${vs.length}  来源=${r?.source ?? '—'}  错误=${r?.error ?? '无'}\n`
+        + `前 3 条：${vs.slice(0, 3).map((x) => x.label ?? x.id).join(', ') || '（空）'}\n`
+        + `推荐标记：${vs.find((x) => x.recommended)?.id ?? '无'}`,
+    };
+  });
+}
+
+/* ---------------------------------------------------------------- 3. 收藏 */
+await check('收藏：切换 / 列表 / 一致性', async () => {
+  const item = { id: '__selftest__', slug: 'selftest', title: '自检条目', kind: 'mod', description: '临时' };
+  const on = await invoke('favorite.toggle', item);
+  const after = await invoke('favorite.list');
+  const found = (after?.items ?? []).some((i) => i.id === '__selftest__');
+  const off = await invoke('favorite.toggle', item);
+  const after2 = await invoke('favorite.list');
+  const gone = !(after2?.items ?? []).some((i) => i.id === '__selftest__');
+
+  return {
+    ok: !!on?.favorited && found && !off?.favorited && gone,
+    detail: `收藏后 favorited=${on?.favorited} count=${on?.count} 列表中可见=${found}\n`
+      + `取消后 favorited=${off?.favorited} count=${off?.count} 列表中已移除=${gone}`,
+  };
+});
+
+/* ---------------------------------------------------------------- 4. 翻译 */
+await check('翻译：免费后端', async () => {
+  const text = 'A modern rendering engine replacement for Minecraft. It improves performance and fixes graphical bugs in the game.';
+  const r = await invoke('resource.translate', { text, target: 'zh-CN' });
+  const zh = r?.text ?? '';
+  const cjk = (zh.match(/[\u4e00-\u9fff]/g) ?? []).length;
+  return {
+    ok: cjk >= 8,
+    detail: `后端=${r?.provider ?? '—'} 缓存=${r?.cached}\n原文：${text}\n译文：${zh || (r?.message ?? '（空）')}`,
+  };
+});
+
+/* ---------------------------------------------------------------- 4.5 Java 探测 */
+await check('Java 探测：应发现多个运行时（发现式扫描）', async () => {
+  // 之前是白名单式扫描，实测在用户机器上 7 个 Java 只找到 1 个。
+  // 现在改成"不认目录名、只看有没有 bin\java.exe"的发现式扫描。
+  const r = await invoke('java.list');
+  const list = r?.javas ?? r?.list ?? (Array.isArray(r) ? r : []);
+
+  const lines = list.map((j) => `  • Java ${j.major}${j.managed ? '（自带）' : ''} ${j.version ?? ''} — ${j.path}`);
+  return {
+    ok: list.length >= 3,
+    detail: `发现 ${list.length} 个运行时\n` + (lines.join('\n') || '（一个都没有）'),
+  };
+});
+
+/* ---------------------------------------------------------------- 5. 资源详情：作者与版本 */
+await check('资源详情：作者不为空 + 支持版本倒序', async () => {
+  // 用 Fabric API —— 它的作者是 modmuss50，支持版本有 392 个（升序返回）
+  const proj = await invoke('modrinth.project', { id: 'fabric-api' });
+  const d = proj?.project ?? proj;
+
+  const author = d?.author ?? '';
+  const vers = d?.gameVersions ?? [];
+
+  // 检查倒序：第一个应该比最后一个大（用数字段粗比）
+  const firstNum = parseInt(String(vers[0] ?? '').replace(/\D.*/, ''), 10);
+  const lastNum = parseInt(String(vers[vers.length - 1] ?? '').replace(/\D.*/, ''), 10);
+  const descending = !Number.isFinite(firstNum) || !Number.isFinite(lastNum) || firstNum >= lastNum;
+
+  return {
+    ok: !!author && vers.length > 0 && descending,
+    detail: `作者=${author || '（空）'}\n支持版本 ${vers.length} 条\n`
+      + `前 4 条=${vers.slice(0, 4).join(', ') || '（空）'}\n`
+      + `末 2 条=${vers.slice(-2).join(', ') || '（空）'}\n倒序=${descending}`,
+  };
+});
+
+await check('资源版本列表：用 id 参数也能取到（参数名兼容）', async () => {
+  // 前端详情页发的是 { id }，内核原先只认 projectId —— 这会让安装按钮永久置灰
+  const r = await invoke('modrinth.versions', { id: 'fabric-api' });
+  const vs = r?.versions ?? (Array.isArray(r) ? r : []);
+  return {
+    ok: vs.length > 0,
+    detail: `条数=${vs.length}\n首条=${vs[0]?.versionNumber ?? vs[0]?.id ?? '（空）'}`,
+  };
+});
+
+/* ---------------------------------------------------------------- 6. Java 自动下载 */
+await check('Java 自动下载：能启动任务并进入下载状态', async () => {
+  // 只验证"任务能起来、能开始拉文件"，不等它下完 ——
+  // 一个运行时有一百多个文件、上百 MB，自检不该跑几分钟。
+  const r = await invoke('java.download', { major: 21 });
+  if (!r?.taskId) return { ok: false, detail: `没有返回 taskId：${JSON.stringify(r)}` };
+
+  // 轮询任务状态，最多等 20 秒
+  let seen = null;
+  for (let i = 0; i < 40; i++) {
+    await new Promise((res) => setTimeout(res, 500));
+    const tasks = await invoke('task.list').catch(() => null);
+    const t = (tasks?.tasks ?? []).find((x) => x.id === r.taskId);
+    if (t) { seen = t; if (t.state !== 'queued') break; }
+  }
+
+  await invoke('task.cancel', { id: r.taskId }).catch(() => {});
+
+  return {
+    ok: !!seen && seen.state !== 'failed',
+    detail: `taskId=${r.taskId}\n状态=${seen?.state ?? '（查不到）'}\n详情=${seen?.detail ?? '—'}`,
+  };
+});
+
+/* ---------------------------------------------------------------- 6.5 分块下载 + 任务取消 */
+await check('分块并行下载 + 任务取消（真实下载游戏本体）', async () => {
+  // 这是对需求"允许多线程下载"与"进行中任务可关闭"的端到端验证：
+  // 真的去下一份 Minecraft，观察它是否走分块路径、进度是否在涨、能否取消。
+  const started = await invoke('version.install', {
+    versionId: '1.21.1',
+    loader: 'vanilla',
+    instanceName: '自检-分块下载',
+  });
+  if (!started?.taskId) return { ok: false, detail: `未能开始安装：${JSON.stringify(started)}` };
+
+  let best = null;
+  let moved = false;
+  let lastBytes = 0;
+
+  for (let i = 0; i < 60; i++) {          // 最多观察 30 秒
+    await new Promise((r) => setTimeout(r, 500));
+    const tasks = await invoke('task.list').catch(() => null);
+    const t = (tasks?.tasks ?? []).find((x) => x.id === started.taskId);
+    if (!t) continue;
+    best = t;
+    if ((t.doneBytes ?? 0) > lastBytes) { moved = true; lastBytes = t.doneBytes ?? 0; }
+    if (t.state === 'failed' || t.state === 'done') break;
+    if (lastBytes > 12 * 1024 * 1024) break;   // 下够 12MB 就够验证了
+  }
+
+  // 顺手验证取消：这正是"任务能关闭"要保证的能力
+  const cancelled = await invoke('task.cancel', { id: started.taskId }).catch(() => null);
+  await new Promise((r) => setTimeout(r, 1200));
+  const after = await invoke('task.list').catch(() => null);
+  const finalState = (after?.tasks ?? []).find((x) => x.id === started.taskId)?.state;
+
+  // 清理这次自检建的实例
+  if (started.instanceId) {
+    await new Promise((r) => setTimeout(r, 800));
+    await invoke('instance.remove', { id: started.instanceId, deleteFiles: true }).catch(() => {});
+  }
+
+  return {
+    ok: moved && finalState !== 'running',
+    detail: `任务 ${started.taskId} 状态=${best?.state ?? '?'} | 已下 ${Math.round(lastBytes / 1024 / 1024)} MB`
+      + ` | 进度=${Math.round(best?.progress ?? 0)}% | 字节在增长=${moved}`
+      + ` | 取消返回=${cancelled ? 'ok' : '失败'} | 取消后状态=${finalState}`,
+  };
+});
+
+/* ---------------------------------------------------------------- 6.8 前置依赖解析 */
+await check('前置依赖：递归解析 + 前置排在主体之前', async () => {
+  // Iris 依赖 Sodium，Sodium 又依赖 Fabric API —— 正好用来验证递归与排序
+  const r = await invoke('modrinth.resolveDeps', {
+    projectId: 'iris',
+    gameVersion: '1.20.1',
+    loader: 'fabric',
+    instanceId: 0,
+  });
+  const items = r?.items ?? [];
+  const rootIdx = items.findIndex((i) => i.isRoot);
+  const depsBeforeRoot = items.slice(0, rootIdx).length;
+
+  return {
+    ok: items.length >= 2 && rootIdx === items.length - 1,
+    detail: `共 ${items.length} 项，其中前置 ${r?.dependencies ?? 0} 个\n`
+      + `顺序：${items.map((i) => (i.isRoot ? `[主体]${i.title}` : i.title)).join(' → ')}\n`
+      + `主体在最后=${rootIdx === items.length - 1}（前置 ${depsBeforeRoot} 项排在其前）`,
+  };
+});
+
+/* ---------------------------------------------------------------- 7. 下载源 */
+await check('下载源信息', async () => {
+  const r = await invoke('source.info');
+  return { ok: !!r?.name, detail: `当前源：${r?.name}（kind=${r?.kind}）` };
+});
+
+/* ---------------------------------------------------------------- 8. 启动命令行 */
+await check('启动命令行：必须含 -cp 与 -Djava.library.path', async () => {
+  const list = await invoke('instance.list');
+  // 挑一个真的装好了的实例。没装好就该被 launch.inspect 明确拒绝 —— 下面单独验。
+  const ready = (list?.instances ?? []).filter((i) => i.installed);
+  if (!ready.length) {
+    return { ok: true, detail: '当前没有已安装的实例，跳过（安装完成后再看这一项）' };
+  }
+
+  const target = ready[0];
+  const r = await invoke('launch.inspect', { instanceId: target.id });
+  const cmd = r?.commandLine ?? '';
+  const hasCp = /\s-cp\s/.test(cmd);
+  const hasLibPath = cmd.includes('-Djava.library.path=');
+  // -cp 后面必须真的跟着库路径，光有开关不算
+  const cpIdx = cmd.indexOf(' -cp ');
+  const cpValue = cpIdx >= 0 ? cmd.slice(cpIdx + 5).split(' ')[0] : '';
+
+  return {
+    ok: hasCp && hasLibPath && cpValue.length > 0,
+    detail: `实例「${target.name}」(${r?.launchVersionId})\n`
+      + `Java ${r?.javaMajor}（版本要求 ${r?.requiredJavaMajor || '未声明'}）\n`
+      + `含 -cp=${hasCp}，-cp 有取值=${cpValue.length > 0}，含 -Djava.library.path=${hasLibPath}\n`
+      + `主类=${r?.mainClass}\n命令行：${cmd.slice(0, 400)}`,
+  };
+});
+
+await check('启动命令行：未安装的实例应被明确拒绝', async () => {
+  const list = await invoke('instance.list');
+  const broken = (list?.instances ?? []).filter((i) => !i.installed && i.versionId);
+  if (!broken.length) {
+    return { ok: true, detail: '没有"声明了版本但没装好"的实例，跳过' };
+  }
+
+  let message = '';
+  try {
+    await invoke('launch.inspect', { instanceId: broken[0].id });
+  } catch (e) {
+    message = e?.message ?? String(e);
+  }
+
+  // 要求是"报一个用户看得懂的错"，而不是让 Java 抛「找不到或无法加载主类」
+  const helpful = message.includes('不完整') || message.includes('重新安装');
+  return { ok: helpful, detail: `实例「${broken[0].name}」的拒绝理由：${message || '(没有拒绝，可疑)'}` };
+});
+
+/* ---------------------------------------------------------------- 汇总 */
+const sum = document.createElement('div');
+sum.className = 'case';
+sum.innerHTML = `<div class="case__head"><span class="case__name">汇总</span>`
+  + `<span class="badge ${passed === total ? 'pass' : 'fail'}">${passed}/${total}</span></div>`
+  + `<pre>${results.map((r) => `${r.ok ? '通过' : '失败'}  ${r.name}`).join('\n')}</pre>`;
+out.appendChild(sum);
+
+document.title = `StarCore 自检 ${passed}/${total}`;
+</script>
+</body>
+</html>

@@ -1,0 +1,66 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    StarCore 桌面宿主。
+    职责仅有三个：开一个无边框窗口、把 wwwroot 里的界面渲染出来、把 JS 调用桥接到 StarCore.Core。
+    界面本身用 HTML/CSS/JS 编写，因此宿主保持尽可能薄。
+  -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>StarCore.Desktop</RootNamespace>
+    <AssemblyName>StarCore</AssemblyName>
+    <ApplicationIcon>wwwroot\assets\img\starcore.ico</ApplicationIcon>
+    <SatelliteResourceLanguages>zh-Hans;en</SatelliteResourceLanguages>
+    <PublishSingleFile>false</PublishSingleFile>
+    <NoWarn>$(NoWarn);CA1416</NoWarn>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+    <Product>StarCore</Product>
+    <Company>StarCore Project</Company>
+    <Copyright>Copyright © 2026 StarCore Project. Minecraft 为 Mojang Studios 商标，本项目与其无隶属关系。</Copyright>
+    <Description>StarCore —— 现代化 Minecraft 启动器</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4258.31" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\StarCore.Core\StarCore.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      界面资源（wwwroot）不交给 MSBuild 的 Copy 任务复制，而是用一个 robocopy 目标处理，
+      原因有两条：
+        1. 实测 MSBuild 的并行 Copy 在部分机器上会在 DeleteFile 的 P/Invoke 里栈溢出崩溃
+           （会直接终止整个构建，且报错信息看不出是哪个文件），robocopy 没有这个问题；
+        2. 界面资源是几百个极小文件，且是增量改动，robocopy 的差异比对比 MSBuild 逐个
+           比对时间戳更快，也更适合"改一个 css 就重新构建"的开发节奏。
+      这里保留 Content 声明是为了让 IDE 能识别这些文件，但不带 CopyToOutputDirectory。
+    -->
+    <Content Include="wwwroot\**\*" Exclude="wwwroot\**\*.map" />
+  </ItemGroup>
+
+  <!-- 构建后同步界面资源到输出目录。退出码 0-7 都算成功（0=无变化，1=有文件被复制）。 -->
+  <Target Name="SyncWebAssets" AfterTargets="Build" Condition="'$(DesignTimeBuild)' != 'true'">
+    <Exec Command="robocopy &quot;$(MSBuildProjectDirectory)\wwwroot&quot; &quot;$(OutDir)wwwroot&quot; /E /XO /NFL /NDL /NJH /NJS /NP"
+          IgnoreExitCode="true" ContinueOnError="true" />
+  </Target>
+
+  <!-- 发布时同样要带上界面资源，否则发出去的包是个空壳。 -->
+  <Target Name="SyncWebAssetsOnPublish" AfterTargets="Publish" Condition="'$(DesignTimeBuild)' != 'true'">
+    <Exec Command="robocopy &quot;$(MSBuildProjectDirectory)\wwwroot&quot; &quot;$(PublishDir)wwwroot&quot; /E /XO /NFL /NDL /NJH /NJS /NP"
+          IgnoreExitCode="true" ContinueOnError="true" />
+  </Target>
+
+</Project>

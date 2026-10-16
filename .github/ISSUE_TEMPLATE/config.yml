@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 安全漏洞
+    url: https://github.com/Yonyuan123/StarCore/security/advisories/new
+    about: 请勿用公开 Issue 报告安全问题，走私密渠道。细节见 SECURITY.md。
+  - name: 使用问题 / 求助
+    url: https://github.com/Yonyuan123/StarCore/discussions
+    about: 安装、配置、Java 选择这类问题请走 Discussions，不属于缺陷。

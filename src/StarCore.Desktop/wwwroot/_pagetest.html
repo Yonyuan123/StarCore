@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>StarCore 页面挂载测试</title>
+<style>
+  body { margin: 0; padding: 20px; font: 12px/1.6 "Microsoft YaHei UI", sans-serif; background: #f4f1ea; color: #211e19; }
+  h1 { font-size: 15px; margin: 0 0 4px; }
+  .sub { color: #8c8577; font-size: 12px; margin-bottom: 16px; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid rgba(58,48,34,.12); vertical-align: top; }
+  th { color: #5c564b; font-weight: 600; font-size: 11px; }
+  td.k { font-family: Consolas, monospace; }
+  .ok { color: #2f6f4f; font-weight: 600; }
+  .bad { color: #a8332a; font-weight: 600; }
+  .err { color: #a8332a; font-family: Consolas, monospace; font-size: 11px; }
+  #stage { position: fixed; left: -10000px; top: 0; width: 1200px; height: 800px; overflow: hidden; }
+</style>
+</head>
+<body>
+<h1>页面挂载测试</h1>
+<div class="sub">
+  逐个挂载每个页面模块的每一个页面，捕获渲染阶段的异常。<br>
+  这类问题（模块级函数引用了闭包内的局部函数）已经出现过两次，每次都表现为
+  「打开某个页面直接变错误页」，靠手动点很难覆盖全。
+</div>
+<div id="stage"></div>
+<table><thead><tr><th style="width:220px">页面</th><th style="width:70px">结果</th><th>说明</th></tr></thead>
+<tbody id="rows"></tbody></table>
+
+<script>
+window.addEventListener('error', (e) => {
+  const el = document.getElementById('rows');
+  el.insertAdjacentHTML('beforeend',
+    `<tr><td class="k">(全局)</td><td class="bad">异常</td><td class="err">${e.message} @ ${e.filename}:${e.lineno}</td></tr>`);
+}, true);
+window.addEventListener('unhandledrejection', (e) => {
+  const r = e.reason;
+  const el = document.getElementById('rows');
+  el.insertAdjacentHTML('beforeend',
+    `<tr><td class="k">(全局)</td><td class="bad">拒绝</td><td class="err">${(r && (r.stack || r.message)) || r}</td></tr>`);
+});
+</script>
+
+<script type="module">
+import { invoke } from './scripts/bridge.js';
+import { setState, getState } from './scripts/store.js';
+
+import { register } from './scripts/router.js';
+import instanceModule from './pages/instance.js';
+import downloadModule from './pages/download.js';
+import resourcesModule from './pages/resources.js';
+import accountsModule from './pages/accounts.js';
+import announcementModule from './pages/announcement.js';
+import logsModule from './pages/logs.js';
+import settingsModule from './pages/settings.js';
+
+const MODULES = [instanceModule, downloadModule, resourcesModule, accountsModule, announcementModule, logsModule, settingsModule];
+const rows = document.getElementById('rows');
+const stage = document.getElementById('stage');
+const results = [];
+
+function log(page, ok, detail) {
+  results.push({ page, ok, detail });
+  rows.insertAdjacentHTML('beforeend',
+    `<tr><td class="k">${page}</td><td class="${ok ? 'ok' : 'bad'}">${ok ? '通过' : '失败'}</td><td class="err">${detail ?? ''}</td></tr>`);
+
+  // 同步写进启动器日志 —— 核对结果不需要截图
+  invoke('ui.log', {
+    level: ok ? 'info' : 'warn',
+    message: `[页面测试 ${ok ? '通过' : '失败'}] ${page}${detail ? ' :: ' + detail : ''}`,
+  }).catch(() => {});
+}
+
+/* 页面挂载通常依赖实例/账户/设置等状态，先取一份真实数据填进 store，
+   否则测出来全是"空状态"，覆盖不到真正的渲染路径。 */
+async function primeState() {
+  const [settings, accounts, instances, versions, javas] = await Promise.all([
+    invoke('settings.get').catch(() => null),
+    invoke('account.list').catch(() => null),
+    invoke('instance.list').catch(() => null),
+    invoke('version.manifest.list').catch(() => null),
+    invoke('java.list').catch(() => null),
+  ]);
+
+  setState({
+    settings: settings ?? {},
+    accounts: accounts?.profiles ?? [],
+    activeUuid: accounts?.activeUuid ?? null,
+    instances: instances?.instances ?? [],
+    activeInstanceId: instances?.activeId ?? instances?.instances?.[0]?.id ?? null,
+    versions: versions?.versions ?? [],
+    javas: javas?.javas ?? [],
+    tasks: [],
+    route: { section: null, sub: null },
+  });
+}
+
+/* 逐个挂载。ctx 里给出页面定义要用到的最小上下文。 */
+async function mountOne(key, def) {
+  const el = document.createElement('div');
+  el.className = 'page';
+  stage.appendChild(el);
+
+  // ctx.off 必须是**数组** —— router 里就是这么传的（页面会 ctx.off.push(...)）。
+  // 之前我传成函数，于是所有用到它的页面都报 "off.push is not a function"，
+  // 那是脚手架自己的 bug，不是被测代码的问题。
+  const ctx = { section: null, sub: null, off: [], go: () => {}, on: () => () => {} };
+
+  try {
+    const ctl = await def.mount?.(el, ctx);
+    // 有些页面把 destroy 挂在返回值上，顺手也验证一下它们能调
+    try { ctl?.destroy?.(); } catch (e) { throw new Error(`destroy 抛异常：${e?.message ?? e}`); }
+    for (const f of ctx.off) { try { f(); } catch { } }
+
+    // 挂载完再等一下，让微任务与 setState 触发的重绘跑完 —— 
+    // 很多渲染错误是在重绘阶段才抛的，同步 mount 返回时还看不出来
+    await new Promise((r) => setTimeout(r, 60));
+
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, detail: `${e?.name ?? 'Error'}: ${e?.message ?? e}` };
+  } finally {
+    el.remove();
+  }
+}
+
+await primeState();
+
+for (const mod of MODULES) {
+  const pages = mod.pages ?? {};
+  for (const [key, def] of Object.entries(pages)) {
+    // 二级面板也测一下，它同样是页面级代码
+    const r = await mountOne(key, def);
+    log(key, r.ok, r.detail);
+  }
+
+  if (mod.panel) {
+    const el = document.createElement('div');
+    stage.appendChild(el);
+    let ok = true, detail;
+    try {
+      await mod.panel(el, null, { go: () => {} });
+      await new Promise((r) => setTimeout(r, 40));
+    } catch (e) {
+      ok = false; detail = `${e?.name ?? 'Error'}: ${e?.message ?? e}`;
+    } finally { el.remove(); }
+    log(`${mod.section ?? '?'} (侧栏面板)`, ok, detail);
+  }
+}
+
+const passed = results.filter((r) => r.ok).length;
+rows.insertAdjacentHTML('beforeend',
+  `<tr><td class="k"><b>汇总</b></td><td class="${passed === results.length ? 'ok' : 'bad'}"><b>${passed}/${results.length}</b></td><td></td></tr>`);
+
+await invoke('ui.log', {
+  level: passed === results.length ? 'info' : 'warn',
+  message: `[页面测试 汇总] ${passed}/${results.length} 个页面挂载成功`
+      + (passed === results.length ? '' : `；失败：${results.filter((r) => !r.ok).map((r) => r.page).join('、')}`),
+}).catch(() => {});
+</script>
+</body>
+</html>

@@ -1,0 +1,572 @@
+/* ============================================================================
+   StarCore · 外壳层 (shell.css)
+   窗口骨架：标题栏 / 图标导航栏 / 二级面板 / 内容宿主 / 页面切换。
+   ========================================================================== */
+
+/* ===========================================================================
+   标题栏
+   整条可拖拽（拖拽由宿主接管，见 bridge.js）；右侧是窗口控制按钮。
+   =========================================================================== */
+
+.titlebar {
+  position: relative;
+  z-index: var(--z-titlebar);
+  display: flex;
+  align-items: center;
+  gap: var(--sp-5);
+  height: var(--h-titlebar);
+  padding-left: 14px;
+  padding-right: 6px;
+  flex: 0 0 auto;
+  /* 用近不透明的玻璃底色代替毛玻璃：观感几乎一致，
+     但省掉了整条标题栏的实时背景采样与模糊 —— 这是本界面最贵的一处开销。 */
+  background: var(--glass-strong);
+  border-bottom: 1px solid var(--border);
+  -webkit-app-region: drag;
+  app-region: drag;
+}
+
+.titlebar .no-drag,
+.titlebar button,
+.titlebar input { -webkit-app-region: no-drag; app-region: no-drag; }
+
+/* 品牌区 */
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
+.brand__mark {
+  width: 22px; height: 22px;
+  flex: 0 0 auto;
+  border-radius: 7px;
+  background: linear-gradient(145deg,
+    color-mix(in oklab, var(--accent) 92%, #fff) 0%,
+    var(--accent) 48%,
+    color-mix(in oklab, var(--accent) 78%, #000) 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 7px -1px color-mix(in oklab, var(--accent) 55%, transparent);
+  overflow: hidden;
+}
+.brand__mark svg { width: 15px; height: 15px; }
+
+.brand__word {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--text);
+  line-height: 1;
+}
+
+.brand__sub {
+  font-size: var(--fs-nano);
+  font-weight: var(--fw-medium);
+  letter-spacing: var(--ls-caps);
+  text-transform: uppercase;
+  color: var(--text-4);
+  padding-left: 8px;
+  margin-left: 3px;
+  border-left: 1px solid var(--border);
+  line-height: 1;
+}
+
+/* 当前页面名：切页时更新，让用户始终知道身处何处 */
+.titlebar__crumb {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  color: var(--text-3);
+  font-size: var(--fs-sm);
+  min-width: 0;
+}
+.titlebar__crumb .sep { color: var(--text-4); }
+.titlebar__crumb strong {
+  font-weight: var(--fw-medium);
+  color: var(--text-2);
+}
+
+.titlebar__spacer { flex: 1 1 auto; }
+
+.titlebar__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex: 0 0 auto;
+}
+
+/* 窗口控制按钮组 */
+.wincontrols {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: var(--sp-4);
+  padding-left: var(--sp-4);
+  border-left: 1px solid var(--border);
+}
+
+.wincontrols__btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 30px;
+  border-radius: var(--r-sm);
+  color: var(--text-2);
+  transition: background-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+}
+.wincontrols__btn:hover { background: var(--hover); color: var(--text); }
+.wincontrols__btn--close:hover { background: var(--danger); color: #fff; }
+.wincontrols__btn .icon { width: 14px; height: 14px; }
+
+/* ===========================================================================
+   主体：图标栏 + 二级面板 + 内容
+   =========================================================================== */
+
+.body {
+  position: relative;
+  z-index: var(--z-content);
+  flex: 1 1 auto;
+  display: flex;
+  min-height: 0;
+}
+
+/* ---------------------------------------------------------------------------
+   图标导航栏
+   --------------------------------------------------------------------------- */
+
+.rail {
+  position: relative;
+  z-index: var(--z-rail);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-2);
+  width: var(--w-rail);
+  flex: 0 0 auto;
+  padding: 10px 0 12px;
+  background: var(--glass-strong);
+  border-right: 1px solid var(--border);
+}
+
+.rail__spacer { flex: 1 1 auto; }
+
+.rail__sep {
+  width: 26px;
+  height: 1px;
+  background: var(--border);
+  margin: var(--sp-3) 0;
+}
+
+/* 图标栏按钮：图标 + 悬停浮出的名称 */
+.rail-btn {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 42px;
+  border-radius: var(--r-md);
+  color: var(--text-3);
+  transition:
+    background-color var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out),
+    transform var(--dur-base) var(--ease-spring);
+}
+.rail-btn .icon { width: 21px; height: 21px; }
+
+.rail-btn:hover {
+  background: var(--hover);
+  color: var(--text);
+  transform: translateY(-1px);
+}
+
+.rail-btn[aria-selected="true"] {
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+
+/* 选中态左侧的强调条 */
+.rail-btn::before {
+  content: "";
+  position: absolute;
+  left: -10px;
+  top: 50%;
+  width: 3px;
+  height: 0;
+  border-radius: var(--r-pill);
+  background: var(--accent);
+  transform: translateY(-50%);
+  transition: height var(--dur-base) var(--ease-spring);
+}
+.rail-btn[aria-selected="true"]::before { height: 20px; }
+
+/* 右上角小角标 */
+.rail-btn__dot {
+  position: absolute;
+  top: 6px; right: 8px;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 2px var(--glass);
+}
+
+.rail-btn__badge {
+  position: absolute;
+  top: 3px; right: 5px;
+  min-width: 16px; height: 16px;
+  padding: 0 4px;
+  border-radius: var(--r-pill);
+  background: var(--danger);
+  color: #fff;
+  font-size: 9.5px;
+  font-weight: var(--fw-bold);
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 0 0 2px var(--glass);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 图标栏底部头像 */
+.rail-avatar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border-radius: var(--r-lg);
+  transition: background-color var(--dur-fast) var(--ease-out);
+}
+.rail-avatar:hover { background: var(--hover); }
+
+/* ---------------------------------------------------------------------------
+   二级面板
+   --------------------------------------------------------------------------- */
+
+.panel {
+  position: relative;
+  z-index: var(--z-panel);
+  display: flex;
+  flex-direction: column;
+  width: var(--w-panel);
+  flex: 0 0 auto;
+  min-height: 0;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  transition: width var(--dur-slow) var(--ease-out), opacity var(--dur-base) var(--ease-out);
+  overflow: hidden;
+}
+
+.panel[hidden] { display: none; }
+
+.panel__head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-5);
+  padding: var(--sp-7) var(--sp-6) var(--sp-5);
+  flex: 0 0 auto;
+}
+
+.panel__title {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  font-size: var(--fs-h2);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--ls-snug);
+  color: var(--text);
+  padding: 0 2px;
+}
+
+.panel__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 var(--sp-4) var(--sp-6);
+}
+
+.panel__foot {
+  flex: 0 0 auto;
+  padding: var(--sp-5) var(--sp-6) var(--sp-6);
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+}
+
+/* 面板内的小节标题 */
+.panel__group {
+  padding: var(--sp-5) var(--sp-5) var(--sp-2);
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--ls-wide);
+  text-transform: uppercase;
+  color: var(--text-4);
+}
+.panel__group:first-child { padding-top: var(--sp-2); }
+
+/* ---------------------------------------------------------------------------
+   内容宿主
+   --------------------------------------------------------------------------- */
+
+.content {
+  position: relative;
+  z-index: var(--z-content);
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+.page {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  opacity: 0;
+  transform: translate3d(0, var(--page-enter-y, 10px), 0);
+  transition:
+    opacity var(--dur-base) var(--ease-out),
+    transform var(--dur-base) var(--ease-out);
+  pointer-events: none;
+  visibility: hidden;
+}
+
+/* 完整档位下页面从更远处滑入，并带一点缩放，层次更明确 */
+[data-motion="full"] .page { --page-enter-y: 18px; }
+[data-motion="off"] .page { --page-enter-y: 0px; }
+
+.page.is-mounted { visibility: visible; }
+.page.is-active {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+}
+
+/* 页面主体滚动区 */
+.page__scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: var(--pad-page);
+  overscroll-behavior: contain;
+  scroll-behavior: smooth;
+}
+
+.page__scroll--flush { padding: 0; }
+
+.page__header {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--sp-8);
+  padding: var(--sp-8) var(--pad-page) var(--sp-7);
+}
+
+.page__title {
+  font-size: var(--fs-h1);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--ls-tight);
+  line-height: var(--lh-tight);
+}
+
+.page__subtitle {
+  margin-top: var(--sp-3);
+  font-size: var(--fs-sm);
+  color: var(--text-3);
+}
+
+.page__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  flex: 0 0 auto;
+}
+
+/* 内容最大宽度，避免超宽屏上行长失控 */
+.page__inner {
+  max-width: 1180px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+/* ===========================================================================
+   幽灵水印标题
+   本项目的记忆点之一：超大字号、极低不透明度的标题压在内容层之下，
+   正常标题叠在它上方。营造"印在纸背"的层次感。
+   =========================================================================== */
+
+.ghost-title {
+  position: relative;
+  display: block;
+}
+
+.ghost-title__ghost {
+  position: absolute;
+  left: -2px;
+  top: -0.3em;
+  font-family: var(--font-display);
+  font-size: clamp(38px, 5vw, 72px);
+  font-weight: 800;
+  letter-spacing: -0.045em;
+  line-height: 1;
+  color: var(--text);
+  opacity: 0.055;
+  white-space: nowrap;
+  pointer-events: none;
+  user-select: none;
+  z-index: 0;
+}
+
+.ghost-title__real {
+  position: relative;
+  z-index: 1;
+  font-size: var(--fs-h1);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--ls-tight);
+  line-height: var(--lh-tight);
+}
+
+/* ===========================================================================
+   Hero 背景（首页）
+   背景图 + 双段遮罩，保证任何图片上叠白字都可读。
+   ========================================================================== */
+
+.hero {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  background: var(--surface-sunken);
+}
+
+.hero__img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 42%;
+  opacity: 0;
+  transition: opacity var(--dur-scene) var(--ease-out);
+}
+.hero__img.is-current { opacity: 1; }
+
+/* 自定义背景视频。几何与 .hero__img 完全一致，只是元素换成 <video>。
+   它是装饰性动态背景：静音、循环、不响应交互，也不该被用户误点到。 */
+.hero__video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 42%;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--dur-scene) var(--ease-out);
+}
+.hero__video.is-current { opacity: 1; }
+
+/* 低开销档位下不播放动态背景 —— 一个全屏视频在软件光栅化下会吃掉整机性能 */
+[data-perf="low"] .hero__video { display: none; }
+
+.hero__scrim {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg, var(--hero-scrim-top) 0%, transparent 26%, transparent 44%, var(--hero-scrim-bottom) 100%),
+    linear-gradient(96deg, rgba(8, 8, 8, 0.42) 0%, transparent 52%);
+}
+
+/* 强调色晕染，把背景图染上当前主题色 */
+.hero__tint {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(46rem 30rem at 78% 12%, color-mix(in oklab, var(--accent) 34%, transparent), transparent 62%),
+    radial-gradient(40rem 30rem at 6% 96%, color-mix(in oklab, var(--accent) 18%, transparent), transparent 60%);
+  mix-blend-mode: soft-light;
+  pointer-events: none;
+}
+
+.hero__grain {
+  position: absolute;
+  inset: 0;
+  opacity: 0.05;
+  mix-blend-mode: overlay;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.7' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* 图片上的文字统一样式 */
+.on-hero { color: var(--on-hero); }
+.on-hero-dim { color: var(--on-hero-dim); }
+
+.hero-shadow-text {
+  text-shadow: 0 1px 14px rgba(0, 0, 0, 0.42), 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+/* ===========================================================================
+   状态条（底部任务/下载）
+   ========================================================================== */
+
+.statusbar {
+  position: relative;
+  z-index: var(--z-panel);
+  display: flex;
+  align-items: center;
+  gap: var(--sp-6);
+  height: 34px;
+  padding: 0 var(--sp-5) 0 var(--sp-6);
+  flex: 0 0 auto;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+
+.statusbar__item {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  min-width: 0;
+}
+.statusbar__item .icon { width: 13px; height: 13px; color: var(--text-4); }
+.statusbar__spacer { flex: 1 1 auto; }
+
+/* ===========================================================================
+   分隔式主从布局（左列表 + 右详情）
+   ========================================================================== */
+
+.split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: var(--sp-8);
+  align-items: start;
+}
+
+@media (max-width: 1100px) {
+  .split { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* 自适应网格 */
+.grid {
+  display: grid;
+  gap: var(--sp-6);
+  grid-template-columns: repeat(auto-fill, minmax(var(--col, 240px), 1fr));
+}
+.grid--wide { --col: 300px; }
+.grid--narrow { --col: 190px; }
+
+/* 窗口过窄时收起二级面板 */
+@media (max-width: 940px) {
+  .panel { position: absolute; inset: 0 auto 0 var(--w-rail); box-shadow: var(--shadow-3); }
+}

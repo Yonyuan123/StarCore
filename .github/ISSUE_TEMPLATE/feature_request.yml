@@ -1,0 +1,31 @@
+name: 功能建议
+description: 想要某个功能，或希望某个交互改得更好
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        提之前建议先看一眼 README 的「功能」一节与 Issues 里已有关联条目，
+        避免重复。
+
+  - type: textarea
+    id: need
+    attributes:
+      label: 你遇到的问题
+      description: |
+        请描述**场景**而不是直接给方案。"我想加个 XX 按钮"很难评估，
+        而"我每次装整合包都要手动去文件夹里删重复的模组"就能判断值不值得做。
+    validations:
+      required: true
+
+  - type: textarea
+    id: idea
+    attributes:
+      label: 你设想的做法（可选）
+      description: 如果已经有想法就写下来；没有也没关系。
+
+  - type: textarea
+    id: why
+    attributes:
+      label: 为什么现有方式不够用（可选）
+      description: 例如"其他启动器里 XX 是这么做的"，或"现在要多点三步"。

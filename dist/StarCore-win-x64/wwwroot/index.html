@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; img-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src https:; font-src 'self' data:;" />
+  <title>StarCore</title>
+
+  <!-- 令牌 -> 基础 -> 组件 -> 外壳 -> 页面。顺序即层叠优先级，不要调换。 -->
+  <link rel="stylesheet" href="styles/tokens.css" />
+  <link rel="stylesheet" href="styles/base.css" />
+  <link rel="stylesheet" href="styles/components.css" />
+  <link rel="stylesheet" href="styles/shell.css" />
+  <link rel="stylesheet" href="pages/pages.css" />
+
+  <!-- 首屏骨架：在 JS 启动前就把窗口底色与圆角画出来，避免白闪 -->
+  <style>
+    #boot {
+      position: fixed; inset: 0; z-index: 500;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 18px;
+      background: var(--bg);
+      transition: opacity 320ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    #boot.is-gone { opacity: 0; pointer-events: none; }
+    #boot .boot-mark {
+      width: 56px; height: 56px; border-radius: 18px;
+      background: linear-gradient(145deg,
+        color-mix(in oklab, var(--accent) 92%, #fff) 0%,
+        var(--accent) 50%,
+        color-mix(in oklab, var(--accent) 74%, #000) 100%);
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 14px 36px -10px color-mix(in oklab, var(--accent) 70%, transparent);
+      animation: boot-in 700ms cubic-bezier(0.34, 1.42, 0.42, 1) both;
+    }
+    #boot .boot-mark svg { width: 30px; height: 30px; }
+    #boot .boot-name {
+      font-family: var(--font-display);
+      font-size: 17px; font-weight: 700; letter-spacing: -0.03em;
+      color: var(--text-2);
+      animation: boot-in 700ms 90ms cubic-bezier(0.34, 1.42, 0.42, 1) both;
+    }
+    #boot .boot-bar {
+      width: 132px; height: 3px; border-radius: 999px;
+      background: var(--surface-sunken); overflow: hidden;
+      animation: boot-in 700ms 160ms cubic-bezier(0.34, 1.42, 0.42, 1) both;
+    }
+    #boot .boot-bar i {
+      display: block; width: 40%; height: 100%;
+      border-radius: inherit; background: var(--accent);
+      animation: boot-slide 1.05s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+    }
+    @keyframes boot-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+    @keyframes boot-slide { 0% { transform: translateX(-110%); } 100% { transform: translateX(310%); } }
+  </style>
+</head>
+
+<body>
+  <div id="boot">
+    <div class="boot-mark">
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M12 1.9 14.15 9.85 22.1 12 14.15 14.15 12 22.1 9.85 14.15 1.9 12 9.85 9.85Z" fill="#fff" />
+      </svg>
+    </div>
+    <div class="boot-name">StarCore</div>
+    <div class="boot-bar"><i></i></div>
+  </div>
+
+  <div id="app">
+    <!-- 氛围层：跟随强调色的渐变网格 + 极轻噪点 -->
+    <div class="atmosphere" aria-hidden="true"></div>
+
+    <!-- ================= 标题栏 ================= -->
+    <header class="titlebar" id="titlebar">
+      <div class="brand">
+        <div class="brand__mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none">
+            <path d="M12 1.9 14.15 9.85 22.1 12 14.15 14.15 12 22.1 9.85 14.15 1.9 12 9.85 9.85Z" fill="#fff" />
+          </svg>
+        </div>
+        <span class="brand__word">StarCore</span>
+        <span class="brand__sub">启动器</span>
+      </div>
+
+      <nav class="titlebar__crumb" id="crumb" aria-label="位置"></nav>
+
+      <div class="titlebar__spacer"></div>
+
+      <div class="titlebar__actions no-drag" id="titlebarActions"></div>
+
+      <div class="wincontrols no-drag">
+        <button class="wincontrols__btn" id="btnMin" title="最小化" aria-label="最小化"></button>
+        <button class="wincontrols__btn" id="btnMax" title="最大化" aria-label="最大化"></button>
+        <button class="wincontrols__btn wincontrols__btn--close" id="btnClose" title="关闭" aria-label="关闭"></button>
+      </div>
+    </header>
+
+    <!-- ================= 主体 ================= -->
+    <div class="body">
+      <nav class="rail" id="rail" aria-label="主导航"></nav>
+      <aside class="panel" id="panel" aria-label="二级导航"></aside>
+      <main class="content" id="content" role="main"></main>
+    </div>
+
+    <!-- ================= 状态条 ================= -->
+    <footer class="statusbar" id="statusbar"></footer>
+
+    <!-- ================= 浮层宿主 ================= -->
+    <div class="toasts" id="toasts" aria-live="polite" aria-atomic="false"></div>
+    <div class="scrim" id="scrim" aria-modal="true" role="dialog"></div>
+  </div>
+
+  <script type="module" src="scripts/app.js"></script>
+</body>
+</html>

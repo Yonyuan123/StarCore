@@ -1,0 +1,12 @@
+<Application x:Class="StarCore.Desktop.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             ShutdownMode="OnMainWindowClose">
+  <!--
+    宿主本身不含任何视觉资源 —— 全部界面都由 WebView2 里的 HTML/CSS 承担。
+    这里只有进程级配置。
+  -->
+  <Application.Resources>
+    <ResourceDictionary />
+  </Application.Resources>
+</Application>

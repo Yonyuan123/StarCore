@@ -1,0 +1,48 @@
+<Window x:Class="StarCore.Desktop.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
+        Title="StarCore"
+        Width="1180" Height="760"
+        MinWidth="900" MinHeight="600"
+        WindowStartupLocation="CenterScreen"
+        WindowStyle="None"
+        ResizeMode="CanResize"
+        UseLayoutRounding="True"
+        SnapsToDevicePixels="True"
+        Background="#FFF2F1EE"
+        TextOptions.TextFormattingMode="Display"
+        TextOptions.TextRenderingMode="ClearType">
+
+  <!--
+    无边框窗口。
+    CaptionHeight=0 —— 标题栏完全由 HTML 绘制，系统不占位；
+    ResizeBorderThickness 保留系统缩放热区，用户仍能从任意边缘拖拽调整大小；
+    GlassFrameThickness=0 —— 不用系统玻璃，避免与界面内的毛玻璃叠加出脏效果。
+  -->
+  <WindowChrome.WindowChrome>
+    <WindowChrome CaptionHeight="0"
+                  ResizeBorderThickness="6"
+                  GlassFrameThickness="0"
+                  CornerRadius="0"
+                  UseAeroCaptionButtons="False" />
+  </WindowChrome.WindowChrome>
+
+  <Grid x:Name="RootGrid" Background="#FFF2F1EE">
+    <!-- 背景色取与界面底色令牌相同的浅色：既避免加载瞬间闪白，
+         也比 Transparent 更稳（透明背景在部分显卡驱动上会让渲染进程异常退出） -->
+    <wv2:WebView2 x:Name="Web" DefaultBackgroundColor="#FFF2F1EE" />
+
+    <!-- WebView2 初始化失败时的兜底界面，避免出现纯白空窗 -->
+    <Border x:Name="FallbackPanel" Visibility="Collapsed" Background="#FFF2F1EE">
+      <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="520">
+        <TextBlock Text="StarCore" FontSize="30" FontWeight="Bold" Foreground="#1A1916"
+                   HorizontalAlignment="Center" Margin="0,0,0,8" />
+        <TextBlock x:Name="FallbackTitle" Text="界面组件未能启动" FontSize="15" Foreground="#5B564D"
+                   TextAlignment="Center" TextWrapping="Wrap" Margin="0,0,0,12" />
+        <TextBlock x:Name="FallbackDetail" FontSize="12" Foreground="#8D877D"
+                   TextAlignment="Center" TextWrapping="Wrap" LineHeight="20" />
+      </StackPanel>
+    </Border>
+  </Grid>
+</Window>

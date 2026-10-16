@@ -1,0 +1,59 @@
+# ============================================================================
+#  StarCore —— .gitignore
+#
+#  原则：**构建中间产物一律不入库，但发布产物入库**。
+#
+#  bin/ 与 obj/ 是编译中间态，随机器和 SDK 版本变化，入库存粹是噪音；
+#  dist/ 是"别人拿到就能跑"的成品，这正是本仓库刻意保留它的原因 ——
+#  它让不装 .NET SDK 的人也能直接用上启动器。
+# ============================================================================
+
+# ---- .NET 构建中间产物 ----
+[Bb]in/
+[Oo]bj/
+*.user
+*.suo
+*.userprefs
+*.userosscache
+*.sln.docstates
+
+# ---- 只应存在于 dist/ 的产物形式 ----
+# （注意：这里**不能**通配 *.exe / *.dll，否则会把 dist/ 里的成品一起排除）
+**/bin/**/*.pdb
+**/bin/**/*.xml
+
+# ---- 工具与缓存 ----
+.vs/
+.vscode/
+.idea/
+*.swp
+*~
+.webcheck/
+TestResults/
+*.trx
+*.coverage
+
+# ---- 本项目运行时产生的数据（绝不入库）----
+# 内含账户令牌、设置、实例索引，属于用户私有数据
+StarCoreData/
+StarCore.portable
+*.log
+logs/
+
+# ---- 操作系统 ----
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.DS_Store
+
+# ---- NuGet ----
+*.nupkg
+packages/
+.nuget/
+
+# ---- 本地临时文件 ----
+*.tmp
+*.bak
+*.orig
+*.rej

@@ -1,0 +1,76 @@
+# ============================================================================
+#  构建与自检
+#
+#  为什么跑在 windows-latest：宿主是 WPF + WebView2，构建脚本里还用了
+#  robocopy / taskkill，这些都是 Windows 专有的。放进 Linux 容器只会得到
+#  一堆"和真实构建环境不一致"的假失败。
+#
+#  流水线顺序刻意与本地保持一致：**前端检查 → 编译 → 产物**。
+#  前端语法错误不会让 C# 编译失败，只会让应用卡在启动画面 ——
+#  那种症状极难排查，所以必须挡在编译之前。
+# ============================================================================
+
+name: build
+
+on:
+  push:
+    branches: [main]
+    paths-ignore: ['dist/**', '*.md', '.github/**']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: 检出
+        uses: actions/checkout@v4
+
+      - name: 安装 .NET 10 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: 缓存 NuGet
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+          restore-keys: ${{ runner.os }}-nuget-
+
+      - name: 前端静态检查（语法 / 导入符号 / 图标引用 / CSS 变量）
+        shell: bash
+        run: ./check-web.sh
+
+      - name: 编译（Debug）
+        shell: bash
+        # 前端检查上面已经跑过，这里 skip 避免重复
+        run: ./build.sh Debug skip
+
+      - name: 编译并发布（Release，框架依赖）
+        shell: bash
+        run: ./publish.sh
+
+      - name: 结果摘要
+        shell: bash
+        run: |
+          echo "### 构建成功" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          find dist -type f | head -40 >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          du -sh dist >> $GITHUB_STEP_SUMMARY
+
+      - name: 上传构建产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: StarCore-win-x64-framework-dependent
+          path: dist/StarCore-win-x64
+          if-no-files-found: error

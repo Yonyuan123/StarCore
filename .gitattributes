@@ -1,0 +1,52 @@
+# ============================================================================
+#  StarCore —— .gitattributes
+#
+#  重点解决两件事：
+#    1. 行尾：源码在 Windows 上开发，但要在任何平台可读可审 —— 统一由 git 归一化。
+#    2. 二进制：明确标记，避免 git 尝试做行尾转换把文件写坏（图标/字体/构建产物）。
+# ============================================================================
+
+# 默认：检出时保持本机习惯，入库统一 LF
+* text=auto
+
+# ---- 源码与文档：一律 LF ----
+*.cs        text diff=csharp
+*.js        text diff=javascript
+*.css       text
+*.html      text
+*.json      text
+*.md        text
+*.sh        text eol=lf
+*.yml       text
+*.yaml      text
+*.xaml      text
+*.csproj    text
+*.slnx      text
+*.props     text
+*.targets   text
+*.editorconfig text
+
+# Windows 专用脚本必须保持 CRLF，否则 cmd.exe 可能解析异常
+*.bat       text eol=crlf
+*.cmd       text eol=crlf
+
+# ---- 二进制：禁止任何转换 ----
+*.png       binary
+*.jpg       binary
+*.jpeg      binary
+*.ico       binary
+*.gif       binary
+*.webp      binary
+*.woff      binary
+*.woff2     binary
+*.ttf       binary
+*.otf       binary
+*.zip       binary
+*.jar       binary
+*.exe       binary
+*.dll       binary
+*.pdb       binary
+*.nupkg     binary
+
+# ---- 发布产物：标记为"生成物"，让 diff / 语言统计不去数它 ----
+dist/**     linguist-generated=true -diff

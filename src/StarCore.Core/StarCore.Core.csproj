@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    StarCore 启动器内核。
+    纯 .NET，不依赖任何 UI 框架 —— 保证 UI 层（WebView2 / 未来可能的其它前端）可替换，
+    核心逻辑（版本安装、账户、Java、启动、资源下载）与呈现完全解耦。
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>StarCore.Core</RootNamespace>
+    <AssemblyName>StarCore.Core</AssemblyName>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <InvariantGlobalization>false</InvariantGlobalization>
+    <EnableDefaultNoneItems>true</EnableDefaultNoneItems>
+    <NoWarn>$(NoWarn);CA1416</NoWarn>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+    <Product>StarCore</Product>
+    <Description>StarCore 启动器内核：版本安装、账户、Java 探测、内容管理与游戏启动</Description>
+  </PropertyGroup>
+
+<ItemGroup>
+    <!-- 皮肤贴图的解码与头像裁切。Windows 专用，与项目定位一致。 -->
+    <PackageReference Include="System.Drawing.Common" Version="10.0.0" />
+  </ItemGroup>
+
+</Project>

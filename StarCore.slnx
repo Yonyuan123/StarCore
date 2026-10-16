@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="src/StarCore.Core/StarCore.Core.csproj" />
+  <Project Path="src/StarCore.Desktop/StarCore.Desktop.csproj" />
+</Solution>
