@@ -39,7 +39,7 @@ jobs:
           dotnet-version: '10.0.x'
 
       - name: 缓存 NuGet
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.nuget/packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
