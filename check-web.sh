@@ -91,9 +91,59 @@ echo "=== 3/4 图标引用 ==="
 const fs = require('fs'), path = require('path');
 const www = process.argv[2];
 const iconsJs = fs.readFileSync(path.join(www, 'scripts/icons.js'), 'utf8');
-const m = iconsJs.match(/export const ICONS = (\{[\s\S]*?\});\n/);
-if (!m) { console.log('  ✗ 解析不了 icons.js 的 ICONS 表'); process.exit(1); }
-const known = new Set(Object.keys(JSON.parse(m[1])));
+
+/* ⚠️ 解析 ICONS 表必须对行尾不敏感。
+   踩过的坑：这里原本写死 `/…\};\n/`（只认 LF），本地是 LF 所以一直没问题，
+   而 CI 上 git 会按平台的 core.autocrlf 把它们检出成 CRLF ——
+   于是 `};\r\n` 匹配不上，每一个 PR 都在这一步失败，报"解析不了 ICONS 表"。
+   现在两种行尾都接受，并且失败时把现场打出来（而不是只说"解析不了"）。 */
+function parseIcons(src) {
+  const m = src.match(/export const ICONS = (\{[\s\S]*?\});\s*(?:\r?\n|$)/);
+  if (m) {
+    try { return JSON.parse(m[1]); } catch { /* 落到下面的兜底 */ }
+  }
+
+  // 兜底：从标记处按花括号配平截取，不依赖任何行尾假设
+  const marker = 'export const ICONS = ';
+  const start = src.indexOf(marker);
+  if (start < 0) return null;
+  const from = start + marker.length;
+  let depth = 0, inStr = false, esc = false, end = -1;
+  for (let i = from; i < src.length; i++) {
+    const c = src[i];
+    if (inStr) {
+      if (esc) esc = false;
+      else if (c === '\\') esc = true;
+      else if (c === '"') inStr = false;
+      continue;
+    }
+    if (c === '"') inStr = true;
+    else if (c === '{') depth++;
+    else if (c === '}') { depth--; if (depth === 0) { end = i + 1; break; } }
+  }
+  if (end < 0) return null;
+  try { return JSON.parse(src.slice(from, end)); } catch { return null; }
+}
+
+const icons = parseIcons(iconsJs);
+if (!icons) {
+  console.log('  ✗ 解析不了 icons.js 的 ICONS 表');
+  console.log('    （文件 ' + iconsJs.length + ' 字节；开头 80 字符：'
+    + JSON.stringify(iconsJs.slice(0, 80)) + '）');
+  process.exit(1);
+}
+
+/* 回归护栏：解析器必须对 CRLF 同样成立。
+   加这条的唯一理由是它真实发生过 —— CI 上 git 按平台的 core.autocrlf
+   把文件检出成 CRLF，而本地通常是 LF，于是"只在 CI 失败"的 bug 无法在本地发现。
+   这里在同一份内容上就地换行尾再解析一次，等于把 CI 的条件搬到了本地。 */
+const crlf = iconsJs.replace(/\r\n/g, '\n').replace(/\n/g, '\r\n');
+if (!parseIcons(crlf)) {
+  console.log('  ✗ 解析器对 CRLF 行尾失效（CI 上必然挂在这一步）');
+  process.exit(1);
+}
+
+const known = new Set(Object.keys(icons));
 
 const used = new Set();
 
