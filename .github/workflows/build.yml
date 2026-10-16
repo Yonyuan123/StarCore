@@ -31,7 +31,7 @@ jobs:
 
     steps:
       - name: 检出
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: 安装 .NET 10 SDK
         uses: actions/setup-dotnet@v4
