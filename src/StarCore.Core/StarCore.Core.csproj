@@ -27,7 +27,7 @@
 
 <ItemGroup>
     <!-- 皮肤贴图的解码与头像裁切。Windows 专用，与项目定位一致。 -->
-    <PackageReference Include="System.Drawing.Common" Version="10.0.0" />
+    <PackageReference Include="System.Drawing.Common" Version="10.0.13" />
   </ItemGroup>
 
 </Project>
