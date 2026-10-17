@@ -117,9 +117,14 @@ function wireWindowControls() {
     invoke('window.toggleMaximize').catch(() => {});
   });
 
-  // 最大化状态变化时，交给宿主通知；这里只兜底样式
+  // 最大化状态变化时，交给宿主通知；这里兜底样式与按钮图标
   on('window.state', (p) => {
-    document.documentElement.dataset.maximized = p?.maximized ? 'true' : 'false';
+    const max = !!p?.maximized;
+    document.documentElement.dataset.maximized = max ? 'true' : 'false';
+    // 和系统一致：最大化后按钮变成"还原"（两个叠放的方块）
+    setIcon('btnMax', max ? 'copy' : 'square');
+    document.getElementById('btnMax')?.setAttribute('title', max ? '还原' : '最大化');
+    document.getElementById('btnMax')?.setAttribute('aria-label', max ? '还原' : '最大化');
   });
 }
 

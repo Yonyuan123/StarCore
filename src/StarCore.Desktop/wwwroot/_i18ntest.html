@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>i18n 自检</title>
+<style>
+  body { font: 14px/1.6 system-ui, sans-serif; padding: 24px; }
+  .row { padding: 6px 0; }
+  .ok { color: #2e7d32; } .bad { color: #c62828; }
+</style>
+</head>
+<body>
+<h2>语言切换链路自检</h2>
+<p>逐项验证 patchSettings → initLocale → t() 是否真的换了语言。</p>
+<div id="out"></div>
+
+<script type="module">
+import { invoke } from './scripts/bridge.js';
+import { patchSettings, getState } from './scripts/store.js';
+import { t, initLocale, getLocale } from './scripts/i18n.js';
+import { button, emptyState } from './scripts/ui.js';
+
+const out = document.getElementById('out');
+const log = (msg, ok) => {
+  out.appendChild(Object.assign(document.createElement('div'), {
+    className: 'row ' + (ok === undefined ? '' : ok ? 'ok' : 'bad'),
+    textContent: (ok === undefined ? '· ' : ok ? '✓ ' : '✗ ') + msg,
+  }));
+  // 同时写进启动器日志：核对结论不需要截图
+  invoke('ui.log', { message: `[i18n自检] ${ok === undefined ? '' : ok ? '通过' : '失败'} ${msg}` }).catch(() => {});
+};
+
+const original = getState().settings?.language ?? 'zh-CN';
+let pass = 0, fail = 0;
+const check = (label, cond) => { cond ? pass++ : fail++; log(label, !!cond); };
+
+try {
+  initLocale('zh-CN');
+  check('基线：中文环境 t("设置") == "设置"', t('设置') === '设置');
+
+  // —— 英文 ——
+  await patchSettings({ language: 'en-US' });
+  check(`切换后 getState().settings.language == en-US（实际 ${getState().settings.language}）`,
+        getState().settings.language === 'en-US');
+  check(`i18n 当前语言 == en-US（实际 ${getLocale()}）`, getLocale() === 'en-US');
+  check(`t("设置") -> Settings（实际 ${t('设置')}）`, t('设置') === 'Settings');
+  check(`t("实例") -> Instances（实际 ${t('实例')}）`, t('实例') === 'Instances');
+  check(`t("保存") -> Save（实际 ${t('保存')}）`, t('保存') === 'Save');
+  check(`t("界面语言已切换") 已翻译（实际 ${t('界面语言已切换')}）`, t('界面语言已切换') === 'Language changed');
+  check('英文 dir 为 ltr', document.documentElement.getAttribute('dir') === 'ltr');
+
+  // —— DOM 层：组件真的把翻译渲染出来了吗（这才是用户看到的）——
+  const btn = button('保存', { variant: 'primary' });
+  check(`button('保存') 渲染为 "${btn.textContent.trim()}"`, btn.textContent.trim() === 'Save');
+  const empty = emptyState({ title: '没有选中的实例', desc: '先在左侧选择一个实例。' });
+  check(`emptyState 标题渲染为 "${(empty.textContent || '').slice(0, 24)}…"`,
+        (empty.textContent || '').includes('No instance selected'));
+
+  // —— 阿拉伯语（RTL）——
+  await patchSettings({ language: 'ar-SA' });
+  check(`阿拉伯语 t("设置")（实际 ${t('设置')}）`, t('设置') === 'الإعدادات');
+  check('阿拉伯语 dir 为 rtl', document.documentElement.getAttribute('dir') === 'rtl');
+
+  // —— 俄语 ——
+  await patchSettings({ language: 'ru-RU' });
+  check(`俄语 t("存档")（实际 ${t('存档')}）`, t('存档') === 'Миры');
+
+  // —— 还原 ——
+  await patchSettings({ language: original });
+  check(`已还原为 ${original}`, getState().settings.language === original);
+} catch (e) {
+  fail++;
+  log('异常：' + (e?.message ?? String(e)), false);
+  invoke('ui.log', { message: `[i18n自检] 异常 ${e?.message ?? e}` }).catch(() => {});
+  await patchSettings({ language: original }).catch(() => {});
+}
+
+log(`结论：通过 ${pass} / 失败 ${fail}`, fail === 0);
+invoke('ui.log', { message: `[i18n自检] 汇总 通过 ${pass} / 失败 ${fail}` }).catch(() => {});
+</script>
+</body>
+</html>

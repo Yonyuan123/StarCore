@@ -24,10 +24,28 @@ internal sealed class HostBridge
     private readonly CoreWebView2 _core;
     private readonly Window _window;
 
+    /// <summary>窗口句柄：PostMessage 用，任意线程可读（创建后不变）。</summary>
+    private IntPtr _hwnd;
+
+    /// <summary>非 UI 线程上无法安全读 WindowState，这里自己记一份。</summary>
+    private bool _lastMaximized;
+
+    private IntPtr Hwnd => _hwnd != IntPtr.Zero
+        ? _hwnd
+        : (_hwnd = new System.Windows.Interop.WindowInteropHelper(_window).Handle);
+
     public HostBridge(CoreWebView2 core, Window window)
     {
         _core = core;
         _window = window;
+        // 窗口创建后句柄就固定了，先缓存好，避免在后台线程里现取
+        window.SourceInitialized += (_, _) =>
+            _hwnd = new System.Windows.Interop.WindowInteropHelper(window).Handle;
+        window.StateChanged += (_, _) =>
+        {
+            if (_window.Dispatcher.CheckAccess())
+                _lastMaximized = window.WindowState == WindowState.Maximized;
+        };
     }
 
     public void Attach()
@@ -111,7 +129,34 @@ internal sealed class HostBridge
             var method = root.TryGetProperty("method", out var mEl) ? mEl.GetString() ?? "" : "";
             var prms = root.TryGetProperty("params", out var pEl) ? pEl.Clone() : default;
 
+            var started = System.Diagnostics.Stopwatch.GetTimestamp();
+
+            /* 窗口控制：同步直达，不进线程池、不排队、不等 await。
+               WebMessageReceived 本身就在 UI 线程，这里直接投递系统命令即可 ——
+               从点击到窗口响应只有一次进程内调用。
+               这是对标 PCL 的关键点：PCL 是纯 WPF，按钮点击就在主线程上直接执行，
+               中间没有任何跨进程往返；我们没法去掉 WebView2 这一层，
+               但可以把它压成"一次同步调用"，效果等价。
+               其余方法仍然必须走线程池（内核里有大量同步文件 IO）。 */
+            if (method is "window.minimize" or "window.toggleMaximize" or "window.close")
+            {
+                var winData = DispatchWindowCommand(method);
+                var winMs = System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+                Logger.Info($"[bridge] {method} 直达耗时 {winMs:F1} ms");
+                Post(new { kind = "result", id, ok = true, data = winData });
+                return;
+            }
+
             var data = await Task.Run(() => DispatchAsync(method, prms));
+
+            // 窗口控制单独计时：用户报过"点按钮要等一分钟"，
+            // 这类问题必须能从日志里直接看出耗时，而不是靠感觉。
+            if (method.StartsWith("window.", StringComparison.Ordinal) && method != "window.drag")
+            {
+                var ms = System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+                Logger.Info($"[bridge] {method} 处理耗时 {ms:F1} ms");
+            }
+
             Post(new { kind = "result", id, ok = true, data });
         }
         catch (Exception ex)
@@ -150,10 +195,46 @@ internal sealed class HostBridge
     /// InvalidOperationException（WPF 在非创建线程访问 Window 会明确报错），
     /// 不会变成一个偶发的诡异现象。
     /// </summary>
+    /// <summary>
+    /// 三个窗口按钮的同步实现（只允许在 UI 线程调用）。
+    /// 直接投递系统命令：异步、带 DWM 动画、不受渲染压力影响。
+    /// </summary>
+    private object? DispatchWindowCommand(string method)
+    {
+        switch (method)
+        {
+            case "window.minimize":
+                NativeWindow.PostCommand(Hwnd, WindowCommand.Minimize);
+                return null;
+
+            case "window.toggleMaximize":
+            {
+                /* 系统命令，不是自己画的动画。
+                   SC_MAXIMIZE / SC_RESTORE 由 Windows 自己处理，
+                   DWM 会播原生的最大化/还原过渡动画（缩放 + 淡入）；
+                   自绘的几何补间做不到这一点，而且在 WebView2 上
+                   逐帧改窗口尺寸会让渲染进程反复重排，直接卡死。 */
+                var maximized = _window.WindowState == WindowState.Maximized;
+                NativeWindow.PostCommand(Hwnd, maximized ? WindowCommand.Restore : WindowCommand.Maximize);
+                _lastMaximized = !maximized;
+                return new { maximized = !maximized };
+            }
+
+            default:
+                NativeWindow.PostCommand(Hwnd, WindowCommand.Close);
+                return null;
+        }
+    }
+
     private static bool RequiresUiThread(string method) =>
-        method is "window.minimize" or "window.toggleMaximize" or "window.close"
-                or "window.drag" or "window.setTheme" or "window.state"
-        || method.StartsWith("system.", StringComparison.Ordinal);
+        // 只保留"真的必须碰 UI 线程"的：
+        //   window.drag / setTheme / state —— 直接操作 WPF 窗口对象
+        //   system.pick* —— 模态对话框
+        // 最小化 / 最大化 / 关闭改走 PostMessage（任意线程安全）；
+        // 系统级文件操作不需要 UI 线程。它们原来被一起塞进白名单，
+        // 只要 UI 线程一忙按钮就要排队 —— 实测出现过一分钟才响应。
+        method is "window.drag" or "window.setTheme" or "window.state"
+        || method is "system.pickFile" or "system.pickFiles" or "system.pickFolder";
 
     private Task<object?> DispatchAsync(string method, JsonElement prms)
     {
@@ -169,18 +250,25 @@ internal sealed class HostBridge
         // ---- 窗口类：由宿主直接处理，不进内核 ----
         switch (method)
         {
+            // 三个窗口命令全部走系统消息：异步投递、不等 UI 线程，
+            // 同时获得 Windows 自带的最小化/最大化动画（见 NativeWindow.PostCommand）。
             case "window.minimize":
-                _window.WindowState = WindowState.Minimized;
+                NativeWindow.PostCommand(Hwnd, WindowCommand.Minimize);
                 return null;
 
             case "window.toggleMaximize":
-                _window.WindowState = _window.WindowState == WindowState.Maximized
-                    ? WindowState.Normal
-                    : WindowState.Maximized;
-                return new { maximized = _window.WindowState == WindowState.Maximized };
+            {
+                // 非 UI 线程读 WindowState 不安全，用自己跟踪的状态兜底
+                var maximized = _window.Dispatcher.CheckAccess()
+                    ? _window.WindowState == WindowState.Maximized
+                    : _lastMaximized;
+                NativeWindow.PostCommand(Hwnd, maximized ? WindowCommand.Restore : WindowCommand.Maximize);
+                _lastMaximized = !maximized;
+                return new { maximized = !maximized };
+            }
 
             case "window.close":
-                _window.Close();
+                NativeWindow.PostCommand(Hwnd, WindowCommand.Close);
                 return null;
 
             case "window.drag":

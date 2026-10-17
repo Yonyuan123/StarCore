@@ -101,28 +101,35 @@
 }
 
 /* 窗口控制按钮组 */
+/* 窗口控制按钮：按 Windows 11 标题栏的规格来 ——
+   46x32、无圆角、按钮之间没有间隙、也没有分隔线（系统里就没有）。
+   自绘的圆角小按钮在这个位置上会显得"像网页"，不像应用。 */
 .wincontrols {
   display: flex;
-  align-items: center;
-  gap: 2px;
-  margin-left: var(--sp-4);
-  padding-left: var(--sp-4);
-  border-left: 1px solid var(--border);
+  align-items: stretch;
+  gap: 0;
+  margin-left: var(--sp-3);
+  height: 100%;
 }
 
 .wincontrols__btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 30px;
-  border-radius: var(--r-sm);
+  width: 46px;
+  height: 100%;
+  min-height: 30px;
+  border-radius: 0;
   color: var(--text-2);
-  transition: background-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+  transition: background-color 120ms linear, color 120ms linear;
 }
 .wincontrols__btn:hover { background: var(--hover); color: var(--text); }
-.wincontrols__btn--close:hover { background: var(--danger); color: #fff; }
+.wincontrols__btn:active { background: var(--active, var(--hover)); }
+.wincontrols__btn--close:hover { background: #c42b1c; color: #fff; }
+.wincontrols__btn--close:active { background: #b02718; color: #fff; }
+/* 图标按系统尺寸：三个按钮的图形都是 10px 级别 */
 .wincontrols__btn .icon { width: 14px; height: 14px; }
+.wincontrols__btn--close .icon { width: 13px; height: 13px; }
 
 /* ===========================================================================
    主体：图标栏 + 二级面板 + 内容
@@ -396,6 +403,38 @@
   max-width: 1180px;
   margin: 0 auto;
   width: 100%;
+}
+
+/* ===========================================================================
+   窗口尺寸适配
+   之前小窗口和全屏长得一模一样：侧栏、面板、内边距、字号全是固定值，
+   窗口一窄内容就被挤扁，还白白占掉 348px 给导航。
+   这里按宽度分三档收缩：面板变窄 → 图标栏变窄 → 内边距与字号压缩。
+   =========================================================================== */
+
+@media (max-width: 1180px) {
+  :root { --w-panel: 248px; }
+}
+
+@media (max-width: 1024px) {
+  :root { --w-rail: 64px; --w-panel: 224px; }
+  .page__inner { max-width: 100%; }
+  .page__scroll { padding-left: var(--sp-7); padding-right: var(--sp-7); }
+}
+
+@media (max-width: 900px) {
+  :root { --w-rail: 58px; --w-panel: 200px; --h-titlebar: 40px; }
+  .page__scroll { padding-left: var(--sp-6); padding-right: var(--sp-6); }
+  /* 行列表在窄窗口下先牺牲"大小"列，把名字留宽 */
+  .rows-head > span:nth-child(3),
+  .row-item > .row-item__trail:first-of-type { display: none; }
+  /* 分栏（详情页左文右卡）在窄屏必须堆叠，否则右卡被压成一条 */
+  .split { grid-template-columns: minmax(0, 1fr); gap: var(--sp-6); }
+}
+
+@media (max-width: 780px) {
+  :root { --w-rail: 54px; --w-panel: 176px; }
+  .page__title, .ghost-title__real { font-size: 22px; }
 }
 
 /* ===========================================================================

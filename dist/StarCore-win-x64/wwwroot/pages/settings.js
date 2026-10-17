@@ -430,7 +430,9 @@ function mountGeneral(el) {
       setSection('语言与区域', 'languages', null,
         setRow('界面语言', '覆盖侧栏、分区标题等核心界面；其余文案将随版本逐步接入。阿拉伯语为从右到左布局。',
           selectControl(s.language ?? 'zh-CN', LOCALES.map((l) => ({ value: l.value, label: l.native })), async (v) => {
-            save({ language: v });
+            // 必须等内核保存完成：patchSettings 内部会应用语言并回写设置，
+            // 之后再重绘才能保证"重绘时用的就是新语言"。
+            await patchSettings({ language: v });
             // 原地全量重绘（rail + 当前页），刻意不用 location.reload ——
             // reload 会把内存状态打回默认，用户看到的就是"闪退回主界面"。
             await repaint();

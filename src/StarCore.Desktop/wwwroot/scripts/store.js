@@ -158,6 +158,10 @@ export async function loadAll() {
 
 export async function patchSettings(patch) {
   setState({ settings: { ...state.settings, ...patch } });
+  // 语言是全局状态，必须在这里立刻应用到 i18n ——
+  // 之前只在 loadAll 结束时设过一次，切换语言时 current 不变，
+  // 于是 repaint 之后界面仍然是旧语言（"永远显示中文"的直接原因）。
+  if (patch && patch.language != null) initLocale(patch.language);
   try {
     const saved = await invoke('settings.set', patch);
     if (saved && typeof saved === 'object') setState({ settings: { ...state.settings, ...saved } });
