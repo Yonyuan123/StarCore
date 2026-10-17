@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
 using StarCore.Core.App;
+using StarCore.Core.Platform;
 using StarCore.Core.Models;
 
 namespace StarCore.Core.Services;
@@ -279,6 +280,9 @@ public static class LaunchService
             StandardOutputEncoding = Encoding.UTF8,
             StandardErrorEncoding = Encoding.UTF8,
         };
+        // 用户自定义环境变量（一行一个 KEY=VALUE）
+        ApplyEnvVars(psi);
+
         foreach (var a in plan.JvmArgs) psi.ArgumentList.Add(a);
         psi.ArgumentList.Add(plan.MainClass);
         foreach (var a in plan.GameArgs) psi.ArgumentList.Add(a);
@@ -294,6 +298,17 @@ public static class LaunchService
         lock (Gate) { Running[instanceId] = proc; StartedAt[instanceId] = startTime; }
 
         Push(new LaunchState { State = "running", InstanceId = instanceId, Pid = proc.Id, StartedAt = startTime });
+
+        // 7.5) 自定义游戏窗口标题（MC 没有这个参数，只能启动后改写主窗口）
+        var titleTemplate = SettingsService.Current.GameWindowTitle;
+        if (!string.IsNullOrWhiteSpace(titleTemplate))
+        {
+            var title = titleTemplate
+                .Replace("{instance}", inst.Name ?? "")
+                .Replace("{version}", inst.VersionId ?? "")
+                .Replace("{loader}", string.IsNullOrWhiteSpace(inst.Loader) ? "原版" : inst.Loader!);
+            _ = ApplyWindowTitleAsync(proc.Id, title);
+        }
 
         // 8) 接管输出
         var gameLog = Path.Combine(inst.Path, "logs", $"starcore-{DateTime.Now:yyyy-MM-dd_HH-mm-ss}.log");
@@ -470,6 +485,47 @@ public static class LaunchService
     }
 
     /// <summary>读版本 JSON 声明的 Java 主版本要求；没有该字段就返回 0。</summary>
+    /// <summary>把设置里的「启动环境变量」注入进程。格式非法就跳过，绝不拦启动。</summary>
+    private static void ApplyEnvVars(ProcessStartInfo psi)
+    {
+        var raw = SettingsService.Current.LaunchEnvVars;
+        if (string.IsNullOrWhiteSpace(raw)) return;
+
+        foreach (var line in raw.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            var idx = line.IndexOf('=');
+            if (idx <= 0) continue; // 不是 KEY=VALUE，忽略这一行
+            var key = line[..idx].Trim();
+            var value = line[(idx + 1)..].Trim().Trim('"');
+            if (key.Length == 0) continue;
+            psi.Environment[key] = value;
+        }
+        Logger.Info("[launch] 已应用自定义环境变量");
+    }
+
+    /// <summary>
+    /// 等游戏窗口出现后改写标题。
+    /// Java 进程起来后还要加载 LWJGL 才建窗口，主窗口句柄可能十几秒才可用，
+    /// 所以轮询重试（最多 60 秒），而不是启动后立刻改一次。
+    /// </summary>
+    private static async Task ApplyWindowTitleAsync(int pid, string title)
+    {
+        for (var i = 0; i < 120; i++)
+        {
+            try
+            {
+                if (PlatformServices.Current.TrySetWindowTitle(pid, title))
+                {
+                    Logger.Info($"[launch] 游戏窗口标题已设为「{title}」");
+                    return;
+                }
+            }
+            catch { /* 进程可能已退出 */ }
+            await Task.Delay(500).ConfigureAwait(false);
+        }
+        Logger.Warn("[launch] 60 秒内未能改写游戏窗口标题（窗口可能还没出现，或系统不允许）");
+    }
+
     /// <summary>
     /// 把游戏语言写成设置里选的值。MC 的 options.txt 是 key:value 格式；
     /// 文件不存在时（还没跑过游戏）就先写一个只含 lang 的 —— MC 启动会读它，

@@ -86,6 +86,17 @@ public sealed class Settings
     /// <summary>启动前备份有改动的存档（PCL 的招牌安全感）。保留最近 5 份。</summary>
     public bool AutoBackupWorlds { get; set; } = true;
 
+    // —— 启动体验（第 6 批）——
+    /// <summary>启动前的倒计时确认（秒）。0 = 不等待直接启动。</summary>
+    public int LaunchCountdown { get; set; }
+    /// <summary>
+    /// 游戏窗口标题模板，支持 {instance} {version} {loader} 变量。留空则用游戏默认标题。
+    /// 实现方式是启动后改写游戏进程主窗口的标题（MC 本身没有这个参数）。
+    /// </summary>
+    public string GameWindowTitle { get; set; } = "";
+    /// <summary>追加给游戏进程的环境变量，一行一个 KEY=VALUE。</summary>
+    public string LaunchEnvVars { get; set; } = "";
+
     public string DownloadSource { get; set; } = "official"; // official | mirror | custom
 
     /// <summary>注册的游戏目录列表（HMCL 的多目录管理）。

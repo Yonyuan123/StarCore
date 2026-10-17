@@ -545,6 +545,13 @@ globalThis.StarCore = {
       const r = await invoke('instance.list').catch(() => null);
       if (r) setState({ instances: r.instances ?? [], activeInstanceId: instanceId });
       await go('instances');
+
+      const secs = Number(getState().settings?.launchCountdown ?? 0);
+      if (secs > 0) {
+        const { countdownDialog } = await import('./ui.js');
+        if (!(await countdownDialog({ seconds: secs, desc: '由命令行启动' }))) return;
+      }
+
       await invoke('launch.start', { instanceId });
     } catch (e) {
       toast({ title: '启动失败', desc: e?.message ?? String(e), kind: 'danger', timeout: 9000 });

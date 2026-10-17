@@ -28,6 +28,12 @@ public interface IRuntimePlatform
     /// </summary>
     string JavaExecutable { get; }
 
+    /// <summary>
+    /// 改写某个进程主窗口的标题。返回是否改写成功。
+    /// 平台不支持时返回 false（安卓没有窗口标题这回事）。
+    /// </summary>
+    bool TrySetWindowTitle(int pid, string title);
+
     /// <summary>备选的 Java 可执行文件名（找不到主名时用它）。</summary>
     string JavaExecutableFallback { get; }
 
@@ -154,4 +160,5 @@ internal sealed class NeutralPlatform : IRuntimePlatform
         }
         catch { return false; }
     }
+    public bool TrySetWindowTitle(int pid, string title) => false;
 }

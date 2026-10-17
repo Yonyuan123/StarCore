@@ -42,6 +42,9 @@ public partial class MainWindow : Window
         StateChanged += OnWindowStateChanged;
         Loaded += OnLoaded;
         Closing += OnClosing;
+
+        // 游戏启动后按设置处理启动器窗口（启动后自动关闭 / 隐藏到托盘）
+        InstallLaunchHook();
     }
 
     /* ==================================================================
@@ -469,8 +472,100 @@ public partial class MainWindow : Window
         SyncNativeTheme();
     }
 
+    /* 托盘与"启动后自动关闭"（第 6 批）。
+       CloseToTray：点关闭按钮时隐藏到托盘而不是退出。
+       LaunchCloseLauncher：游戏启动后自动关闭启动器（释放内存）；
+       若同时开了 CloseToTray，就只隐藏到托盘，用户还能从托盘叫回来。 */
+    private TrayIcon? _tray;
+    private bool _reallyExit;
+    private bool _launchHookInstalled;
+
+    private void EnsureTray()
+    {
+        if (_tray is not null) return;
+        _tray = new TrayIcon(this, RestoreFromTray, ExitForReal);
+        _tray.Install();
+    }
+
+    private void RestoreFromTray()
+    {
+        Show();
+        if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal;
+        Activate();
+        Topmost = true;
+        Topmost = false;
+        Focus();
+    }
+
+    /// <summary>从托盘菜单"退出"：绕过 CloseToTray 的拦截，真正退出。</summary>
+    internal void ExitForReal()
+    {
+        _reallyExit = true;
+        _tray?.Dispose();
+        _tray = null;
+        Close();
+    }
+
+    /// <summary>游戏进入 running 后按设置处理启动器窗口。</summary>
+    private void InstallLaunchHook()
+    {
+        if (_launchHookInstalled) return;
+        _launchHookInstalled = true;
+
+        StarCoreHost.Event += (name, payload) =>
+        {
+            if (name != "launch.state") return;
+            var state = (payload as LaunchState)?.State;
+
+            // 游戏结束：如果启动器正在托盘里，把它弹回前台 ——
+            // 玩家刚打完一局，下一步多半要看日志/换实例。
+            if (state is "exited" or "crashed")
+            {
+                Dispatcher.BeginInvoke(() =>
+                {
+                    if (!IsVisible && _tray is not null)
+                    {
+                        RestoreFromTray();
+                        Logger.Info("[window] 游戏已退出，启动器已从托盘恢复");
+                    }
+                });
+                return;
+            }
+
+            if (state != "running") return;
+
+            var st = SettingsService.Current;
+            if (!st.LaunchCloseLauncher) return;
+
+            Dispatcher.BeginInvoke(() =>
+            {
+                if (st.CloseToTray)
+                {
+                    EnsureTray();
+                    Hide();
+                    Logger.Info("[window] 游戏已启动，启动器已最小化到托盘");
+                }
+                else
+                {
+                    Logger.Info("[window] 游戏已启动，按设置关闭启动器");
+                    ExitForReal();
+                }
+            });
+        };
+    }
+
     private void OnClosing(object? sender, System.ComponentModel.CancelEventArgs e)
     {
+        // 关闭到托盘：拦下这次关闭，隐藏窗口，游戏继续运行
+        if (!_reallyExit && SettingsService.Current.CloseToTray)
+        {
+            e.Cancel = true;
+            EnsureTray();
+            Hide();
+            Logger.Info("[window] 已最小化到托盘（关闭按钮）");
+            return;
+        }
+
         try { _bridge?.Detach(); }
         catch { }
 
@@ -484,6 +579,7 @@ public partial class MainWindow : Window
             if (r != MessageBoxResult.Yes) e.Cancel = true;
         }
 
+        _tray?.Dispose();
         Logger.Info("[window] 启动器关闭");
     }
 

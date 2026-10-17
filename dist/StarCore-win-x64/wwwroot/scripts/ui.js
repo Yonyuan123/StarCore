@@ -416,6 +416,39 @@ export function dialog({ title, icon: ic, body, actions = [], width = 520, dismi
   });
 }
 
+/**
+ * 启动倒计时确认（PCL 的招牌细节）。
+ * 到点自动继续，"立即启动" 跳过等待，"取消" 中止。
+ * 返回 Promise<boolean>：true = 继续启动。
+ */
+export function countdownDialog({ seconds = 3, title = '即将启动游戏', desc = '' } = {}) {
+  let timer = null;
+  const done = dialog({
+    title, icon: 'play', width: 420, dismissible: true,
+    body: (close) => {
+      const num = h('div', { class: 'countdown__num', text: String(seconds) });
+      let left = seconds;
+      timer = setInterval(() => {
+        left -= 1;
+        num.textContent = String(Math.max(left, 0));
+        if (left <= 0) { clearInterval(timer); timer = null; close('go'); }
+      }, 1000);
+
+      return h('div', { class: 'countdown' },
+        num,
+        h('div', { class: 'countdown__label', text: '秒后启动游戏' }),
+        desc ? h('div', { class: 'dim', style: { fontSize: 'var(--fs-xs)', marginTop: 'var(--sp-4)' }, text: desc }) : null,
+      );
+    },
+    actions: [
+      { label: '取消', variant: 'ghost', value: null },
+      { label: '立即启动', variant: 'primary', value: 'go' },
+    ],
+    onClose: () => { if (timer) { clearInterval(timer); timer = null; } },
+  });
+  return done.then((v) => v === 'go');
+}
+
 export function confirm({ title = '确认操作', message, confirmLabel = '确认', cancelLabel = '取消', danger = false } = {}) {
   title = t(title); message = t(message); confirmLabel = t(confirmLabel); cancelLabel = t(cancelLabel);
   return dialog({

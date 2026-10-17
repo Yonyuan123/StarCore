@@ -14,6 +14,31 @@ namespace StarCore.Core.Platform;
 internal sealed class WindowsPlatform : IRuntimePlatform
 {
     public string Name => "windows";
+    [System.Runtime.InteropServices.DllImport("user32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+    private static extern bool SetWindowText(IntPtr hwnd, string text);
+
+    /// <summary>
+    /// 改写游戏进程主窗口标题。
+    /// Java 进程的主窗口不是立即出现的（LWJGL 要等 JVM 起来才建窗口），
+    /// 所以调用方需要在后台重试若干次，见 LaunchService.ApplyWindowTitleAsync。
+    /// </summary>
+    public bool TrySetWindowTitle(int pid, string title)
+    {
+        if (string.IsNullOrEmpty(title)) return false;
+        try
+        {
+            using var proc = System.Diagnostics.Process.GetProcessById(pid);
+            proc.Refresh();
+            var hwnd = proc.MainWindowHandle;
+            if (hwnd == IntPtr.Zero) return false;
+            return SetWindowText(hwnd, title);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     public bool IsDesktop => true;
 
     // 用 javaw 而不是 java：前者不附带控制台窗口。

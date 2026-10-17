@@ -1145,3 +1145,9 @@ kbd {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
+
+
+/* 启动倒计时的数字：大、居中、不占太多垂直空间 */
+.countdown { display: flex; flex-direction: column; align-items: center; gap: var(--sp-2); padding: var(--sp-6) 0 var(--sp-4); }
+.countdown__num { font-size: 56px; font-weight: var(--fw-bold); line-height: 1; color: var(--accent); font-variant-numeric: tabular-nums; }
+.countdown__label { font-size: var(--fs-sm); color: var(--text-3); }

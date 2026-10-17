@@ -190,6 +190,49 @@ function mountGeneral(el) {
           switchEl(!!s.launchCloseLauncher, (v) => save({ launchCloseLauncher: v }), { label: '启动完成后自动关闭启动器' })),
         setRow('允许同一实例多开', '同时开多个同一个实例的游戏进程。两个进程会写同一个存档目录，同时游玩同一存档可能损坏进度 —— 确认需要再开。',
           switchEl(!!s.allowMultiInstance, (v) => save({ allowMultiInstance: v }), { label: '允许同一实例多开' })),
+        setRow('启动倒计时', '点启动后先等几秒再真正开游戏，留出反悔的时间。0 = 立即启动。',
+          selectControl(String(s.launchCountdown ?? 0), [
+            { value: '0', label: '不等待（立即启动）' },
+            { value: '3', label: '3 秒' },
+            { value: '5', label: '5 秒' },
+            { value: '10', label: '10 秒' },
+          ], (v) => save({ launchCountdown: Number(v) }))),
+        setRow('游戏窗口标题', '启动后改写游戏窗口的标题。支持变量：{instance} 实例名、{version} 游戏版本、{loader} 加载器。留空则用游戏默认标题。',
+          (() => {
+            const input = h('input', {
+              class: 'input mono', style: { width: '320px' },
+              placeholder: '例如：{instance} - {version}',
+              value: s.gameWindowTitle ?? '',
+            });
+            let last = s.gameWindowTitle ?? '';
+            const commit = () => {
+              const v = input.value.trim();
+              if (v === last) return;
+              last = v;
+              save({ gameWindowTitle: v });
+            };
+            input.addEventListener('change', commit);
+            input.addEventListener('blur', commit);
+            return input;
+          })()),
+        setRow('启动环境变量', '追加给游戏进程的环境变量，一行一个 KEY=VALUE。多数玩家用不到，需要时（例如指定 JVM 临时目录、OpenGL 后端）再填。',
+          (() => {
+            const ta = h('textarea', {
+              class: 'textarea mono', rows: '4',
+              style: { width: '360px', fontSize: 'var(--fs-xs)' },
+              placeholder: 'MESA_GL_VERSION_OVERRIDE=4.6\nJAVA_TOOL_OPTIONS=-Dfile.encoding=UTF-8',
+            });
+            ta.value = s.launchEnvVars ?? '';
+            let last = s.launchEnvVars ?? '';
+            const commit = () => {
+              if (ta.value === last) return;
+              last = ta.value;
+              save({ launchEnvVars: ta.value });
+            };
+            ta.addEventListener('change', commit);
+            ta.addEventListener('blur', commit);
+            return ta;
+          })()),
       ),
 
       setSection('下载', 'cloud-download', '影响版本、资源与 Java 的下载方式。',

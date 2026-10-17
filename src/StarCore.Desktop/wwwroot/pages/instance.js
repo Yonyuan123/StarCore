@@ -17,7 +17,7 @@ import { invoke } from '../scripts/bridge.js';
 import { getState, setState, subscribe, getActiveInstance, patchSettings } from '../scripts/store.js';
 import {
   h, fill, icon, iconButton, button, emptyState, chip, loaderIcon, loaderLogo, blockCover,
-  toast, dialog, confirm, menu, fmtBytes, fmtDateTime, fmtAgo, fmtDuration,
+  toast, dialog, confirm, countdownDialog, menu, fmtBytes, fmtDateTime, fmtAgo, fmtDuration,
   selectControl as customSelect,
 } from '../scripts/ui.js';
 import { go } from '../scripts/router.js';
@@ -413,6 +413,13 @@ function mountHero(el) {
       toast({ title: '该实例还没有版本', desc: '请先为它选择一个游戏版本。', kind: 'warning' });
       go('download');
       return;
+    }
+
+    // 启动倒计时（设置里可关）
+    const secs = Number(getState().settings?.launchCountdown ?? 0);
+    if (secs > 0) {
+      const go = await countdownDialog({ seconds: secs, desc: inst.name });
+      if (!go) return;
     }
 
     try {
