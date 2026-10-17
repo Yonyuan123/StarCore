@@ -1,29 +1,52 @@
 #!/usr/bin/env bash
-# StarCore 发布脚本 —— 产出 dist/StarCore-win-x64（框架依赖版）。
+# StarCore 发布脚本 —— 产出可分发的构建，并连同 zip 包一起校验。
+#
+# 默认产出**自包含**版（dist/StarCore-win-x64）：双击即用，不需要装 .NET。
+# 要产出体积小的框架依赖版加 --framework-dependent。
 #
 # 为什么单独一个脚本，而不是在 build.sh 里加个分支：
-#   两者目的完全不同。build.sh 服务于"改一行就重新跑一遍"的开发循环，
-#   它不关心产物体积、会保留 pdb 与 xml 文档；publish.sh 服务于"发出去的这一份"，
-#   要把调试文件清掉、把体积压下来，并且必须验证界面资源真的在包里。
+#   build.sh 服务于"改一行就重新跑一遍"的开发循环，不关心产物体积、
+#   保留 pdb 与 xml 文档；publish.sh 服务于"发出去的这一份"，
+#   要清掉调试文件、验证界面资源，并把结果打成包。
 #
-# 用 ./build.sh Release run 可以得到能直接跑的产物，但那份是"开发视角的"；
-# 要交给用户的那份请用本脚本。
+# ⚠️ 这个脚本里最关键的不是编译，是第 6 步。
+#    实测过：改完 css 直接 dotnet publish，产物里的 wwwroot 还是前一天的文件
+#    （csproj 里 AfterTargets="Build" 的 robocopy 目标在增量构建下没有执行）。
+#    这种包能启动、界面也能显示，只是显示的是旧界面 —— 极难发现。
+#    所以这里用逐文件哈希比对，而不是"文件存在就算过"。
 #
 # 用法：
-#   ./publish.sh                 # 发布到 dist/StarCore-win-x64
-#   ./publish.sh Release         # 同默认
-#   ./publish.sh Debug out/tmp   # 指定配置与输出目录
+#   ./publish.sh                          # 自包含版 -> dist/StarCore-win-x64
+#   ./publish.sh --framework-dependent    # 框架依赖版 -> dist/StarCore-win-x64-framework-dependent
+#   ./publish.sh Debug                    # 指定配置
 
 set -u
 
-CONFIG="${1:-Release}"
-OUT="${2:-dist/StarCore-win-x64}"
 SELF="$(cd "$(dirname "$0")" && pwd)"
-
 cd "$SELF"
 
-# 1) 前端检查先行。理由见 build.sh 顶部：前端错误不会让 C# 编译失败，
-#    只会让应用卡在启动画面 —— 那种症状一旦发出去极难排查。
+CONFIG="Release"
+MODE="selfcontained"
+
+for arg in "$@"; do
+  case "$arg" in
+    --framework-dependent) MODE="framework" ;;
+    Debug|Release)         CONFIG="$arg" ;;
+    *) echo "未知参数：$arg"; exit 2 ;;
+  esac
+done
+
+if [ "$MODE" = "selfcontained" ]; then
+  OUT="dist/StarCore-win-x64"
+  RID_ARGS=(-r win-x64 --self-contained true)
+else
+  OUT="dist/StarCore-win-x64-framework-dependent"
+  RID_ARGS=()
+fi
+
+echo "=== 发布 $CONFIG / $MODE -> $OUT ==="
+
+# 1) 前端检查先行。前端错误不会让 C# 编译失败，只会让应用卡在启动画面。
 if ! "$SELF/check-web.sh"; then
   echo "前端检查未通过，已中止发布。"
   exit 1
@@ -34,11 +57,15 @@ taskkill //F //T //IM StarCore.exe > /dev/null 2>&1
 taskkill //F //IM msedgewebview2.exe > /dev/null 2>&1
 sleep 1
 
+# 3) 清空输出目录。
+#    必须清：残留的旧 wwwroot 会让增量复制"看起来"完成了，
+#    而实际上那些文件从未被更新过。
 rm -rf "$OUT"
 
-# 3) 发布
+# 4) 发布
 dotnet publish src/StarCore.Desktop/StarCore.Desktop.csproj \
   -c "$CONFIG" \
+  "${RID_ARGS[@]+"${RID_ARGS[@]}"}" \
   -o "$OUT" \
   -p:DebugType=none \
   -p:RunAnalyzers=false \
@@ -50,28 +77,70 @@ if [ $STATUS -ne 0 ]; then
   exit $STATUS
 fi
 
-# 4) 去掉不该随成品发出去的文件
-#    pdb 是调试符号、xml 是 API 文档注释，对用户没有任何价值，只增加体积与噪音。
+# 5) 去掉不该随成品发出的文件。
+#    pdb 是调试符号、xml 是 API 注释，对用户无价值。
+#    注意 **不能** 删 StarCore.deps.json —— 运行时靠它解析依赖。
 find "$OUT" -name '*.pdb' -delete 2>/dev/null
 find "$OUT" -name '*.xml' -delete 2>/dev/null
 
-# 5) 自检：界面资源必须真的在包里。
-#    项目里 wwwroot 是靠 robocopy 目标同步的，一旦那个目标失效，
-#    发出去的就会是一个"什么都没有的空壳"——而且它照样能启动，只是白屏。
-if [ ! -f "$OUT/wwwroot/index.html" ]; then
-  echo "✗ 界面资源缺失（$OUT/wwwroot/index.html 不存在），发布中止。"
-  exit 1
-fi
-if [ ! -f "$OUT/StarCore.exe" ]; then
-  echo "✗ 未找到 StarCore.exe，发布中止。"
+# 6) 硬校验一：界面资源与源码逐文件一致。
+#    这一步是整份脚本的重点，见文件头。
+if ! python _tools/verify-web-assets.py src/StarCore.Desktop/wwwroot "$OUT/wwwroot"; then
+  echo
+  echo "✗ 产物里的界面资源不是最新的，已中止。"
+  echo "  通常是 dotnet publish 走了增量导致 robocopy 目标没执行。"
+  echo "  重跑本脚本即可（第 3 步会先清空输出目录）。"
   exit 1
 fi
 
+# 7) 硬校验二：必需文件在，且运行时形态符合预期。
+if [ ! -f "$OUT/StarCore.exe" ]; then
+  echo "✗ 未找到 StarCore.exe，已中止。"
+  exit 1
+fi
+
+python - "$OUT" "$MODE" <<'PY'
+import json, os, sys
+out, mode = sys.argv[1], sys.argv[2]
+cfg = json.load(open(os.path.join(out, "StarCore.runtimeconfig.json"), encoding="utf-8"))["runtimeOptions"]
+is_sc = "includedFrameworks" in cfg
+print(f"运行时形态：{'自包含（includedFrameworks）' if is_sc else '框架依赖（frameworks）'}")
+if mode == "selfcontained" and not is_sc:
+    print("::error::要求自包含，但产物是框架依赖版 —— 用户双击会弹“需要安装 .NET”")
+    sys.exit(1)
+if mode == "framework" and is_sc:
+    print("::error::要求框架依赖版，但产物带了运行时")
+    sys.exit(1)
+PY
+if [ $? -ne 0 ]; then
+  echo "✗ 运行时形态不符合预期，已中止。"
+  exit 1
+fi
+
+# 8) 打包成 zip 并校验包内容（与 CI 用的是同一份逻辑）
+PKG="out/StarCore-win-x64-${MODE}.zip"
+[ "$MODE" = "selfcontained" ] && PKG="out/StarCore-win-x64-selfcontained.zip" || PKG="out/StarCore-win-x64-framework-dependent.zip"
+
+python _tools/make-package.py "$OUT" "$PKG" --prefix StarCore-win-x64 || exit 1
+
 echo
-echo "发布完成：$OUT"
-echo "  可执行文件 $(du -h "$OUT/StarCore.exe" | cut -f1)"
-echo "  整包大小   $(du -sh "$OUT" | cut -f1)"
-echo "  界面资源   $(find "$OUT/wwwroot" -type f | wc -l) 个文件"
+if [ "$MODE" = "selfcontained" ]; then
+  python _tools/verify-package.py "$PKG" || exit 1
+else
+  python _tools/verify-package.py "$PKG" --framework-dependent || exit 1
+fi
+
 echo
-echo "提示：这一份是**框架依赖**版本，目标机器需要安装 .NET 10 桌面运行时。"
-echo "      要产出双击即用、不含运行时的自包含版本，见 .github/workflows/release.yml"
+echo "发布完成"
+echo "  目录     $OUT"
+echo "  可执行   $(du -h "$OUT/StarCore.exe" | cut -f1)"
+echo "  整包     $(du -sh "$OUT" | cut -f1)"
+echo "  压缩包   $PKG（$(du -h "$PKG" | cut -f1)）"
+echo "  界面资源 $(find "$OUT/wwwroot" -type f | wc -l) 个文件，与源码一致"
+if [ "$MODE" = "selfcontained" ]; then
+  echo
+  echo "这一份可直接分发：解压后双击 StarCore.exe，不需要装 .NET。"
+else
+  echo
+  echo "这一份是框架依赖版，目标机器需要 .NET 10 桌面运行时。"
+fi

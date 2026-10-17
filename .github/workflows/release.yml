@@ -61,16 +61,22 @@ jobs:
             -m:1
 
       # 自包含发布不会自动带上 wwwroot（项目里用的是 robocopy 目标，
-      # 只在 Build/Publish 之后跑）。漏了它发出去的包就是个空壳。
-      - name: 确认界面资源在包里
+      # 而且实测在增量构建下 AfterTargets 可能不执行 —— 产物里会留着一份
+      # 前一天的界面资源，包照样能启动，只是显示的是旧界面）。
+      #
+      # 所以这里不判断"缺不缺"，而是**无条件覆盖一次再逐文件校验**：
+      #   - `cp -r src/. dst/` 是合并语义；写成 `cp -r src dst/` 会嵌套成 dst/src
+      #     （这个坑我踩过一次，dist 里多出一层 selfcontained/）。
+      #   - 校验用哈希而不是"文件存在"，否则旧文件一样能通过。
+      - name: 界面资源必须与源码一致
         shell: bash
         run: |
-          if [ ! -f out/selfcontained/wwwroot/index.html ]; then
-            echo "界面资源缺失，正在补齐…"
-            cp -r src/StarCore.Desktop/wwwroot out/selfcontained/
-          fi
-          test -f out/selfcontained/wwwroot/index.html
+          set -euo pipefail
+          mkdir -p out/selfcontained/wwwroot
+          cp -r src/StarCore.Desktop/wwwroot/. out/selfcontained/wwwroot/
           test -f out/selfcontained/StarCore.exe
+          python _tools/verify-web-assets.py \
+            src/StarCore.Desktop/wwwroot out/selfcontained/wwwroot
 
       # 打包与校验都用 _tools/ 下的脚本，与本地跑的是同一份逻辑。
       # 之所以不用 7z：它在 Windows 上写出的 zip 条目名用反斜杠
