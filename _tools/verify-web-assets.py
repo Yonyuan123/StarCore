@@ -42,6 +42,12 @@ def collect(root: str) -> dict[str, str]:
     return out
 
 
+if hasattr(sys.stdout, "reconfigure"):
+    # Windows 的 CI/终端默认编码不是 UTF-8，打印中文会直接 UnicodeEncodeError。
+    # 这个脚本在中文环境下输出中文结论，输出失败比校验失败更冤枉。
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 def main() -> int:
     if len(sys.argv) < 3:
         print("用法: verify-web-assets.py <源码 wwwroot> <产物 wwwroot>", file=sys.stderr)

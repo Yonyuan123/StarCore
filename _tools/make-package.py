@@ -25,6 +25,12 @@ EXCLUDE_SUFFIX = (".pdb", ".xml")
 EXCLUDE_NAME = (".DS_Store", "Thumbs.db")
 
 
+if hasattr(sys.stdout, "reconfigure"):
+    # Windows 的 CI/终端默认编码不是 UTF-8，打印中文会直接 UnicodeEncodeError。
+    # 这个脚本在中文环境下输出中文结论，输出失败比校验失败更冤枉。
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 def main() -> int:
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     if len(args) < 2:

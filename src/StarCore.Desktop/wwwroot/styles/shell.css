@@ -554,24 +554,18 @@
 }
 
 /* 资源详情右侧的安装卡片。
-   position: sticky 只负责"跟着滚"，不负责高度 —— 卡片内容一长
-   （版本选择 + 实例列表 + 前置依赖 + 安装按钮），它就比视口还高，
-   sticky 会让它粘在顶部、底部永远够不到，看起来就是"往下滚就错位"。
-   这里显式限高并让卡片自己滚，滚到底时也不会把页面带着一起动。 */
+   曾经用 position: sticky + 内部滚动：卡片内容一长就被视口裁断，
+   用户要在"页面滚动"和"卡片内滚动"两层之间来回，体验很差。
+   现在回到普通文档流 —— 卡片随页面一起滚，所有内容都完整可见，
+   也符合 PCL / HMCL 的页面式浏览习惯。 */
 .install-card {
-  position: sticky;
-  top: var(--sp-4);
-  max-height: calc(100vh - 120px);
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  /* 滚动条贴在圆角边上很难看，留一点内边距 */
-  padding-right: var(--sp-2);
+  position: static;
+  max-height: none;
+  overflow: visible;
 }
 
 @media (max-width: 1100px) {
   .split { grid-template-columns: minmax(0, 1fr); }
-  /* 单栏时 sticky 没有意义，反而会把卡片钉住挡住内容 */
-  .install-card { position: static; max-height: none; overflow: visible; }
 }
 
 /* 自适应网格 */
