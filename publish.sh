@@ -22,6 +22,10 @@
 
 set -u
 
+# Windows CI 的默认编码不是 UTF-8，脚本里的 python 内联段打印中文会直接
+# UnicodeEncodeError（_tools/ 下的脚本各自 reconfigure 过，这里管的是内联段）。
+export PYTHONIOENCODING=utf-8
+
 SELF="$(cd "$(dirname "$0")" && pwd)"
 cd "$SELF"
 
