@@ -186,6 +186,8 @@ function mountGeneral(el) {
           switchEl(!!s.closeToTray, (v) => save({ closeToTray: v }), { label: '关闭窗口时最小化到托盘' })),
         setRow('启动完成后自动关闭启动器', '游戏进入主菜单后自动退出启动器，适合日常直接开玩。',
           switchEl(!!s.launchCloseLauncher, (v) => save({ launchCloseLauncher: v }), { label: '启动完成后自动关闭启动器' })),
+        setRow('允许同一实例多开', '同时开多个同一个实例的游戏进程。两个进程会写同一个存档目录，同时游玩同一存档可能损坏进度 —— 确认需要再开。',
+          switchEl(!!s.allowMultiInstance, (v) => save({ allowMultiInstance: v }), { label: '允许同一实例多开' })),
       ),
 
       setSection('下载', 'cloud-download', '影响版本、资源与 Java 的下载方式。',

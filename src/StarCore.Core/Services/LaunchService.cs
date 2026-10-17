@@ -176,6 +176,22 @@ public static class LaunchService
            直接报「找不到或无法加载主类 net.minecraft.client.main.Main」并退出码 1。 */
         finalJvm.AddRange(jvm);
 
+        // 服务器直连（1.20+ 的 --quickPlayMultiplayer）。这是官方参数，
+        // 不碰 servers.dat 的 NBT —— 那个格式没有公开规范，手写解析容易把用户的服务器列表写坏。
+        if (!string.IsNullOrWhiteSpace(inst.QuickPlayServer))
+        {
+            if (SupportsQuickPlay(launchVersionId))
+            {
+                game.Add("--quickPlayMultiplayer");
+                game.Add(inst.QuickPlayServer.Trim());
+                Logger.Info($"[launch] 服务器直连：{inst.QuickPlayServer.Trim()}");
+            }
+            else
+            {
+                Logger.Warn($"[launch] 版本 {launchVersionId} 不支持 --quickPlayMultiplayer（需要 1.20+），忽略服务器直连设置");
+            }
+        }
+
         if (inst.Fullscreen)
         {
             game.Add("--fullscreen");
@@ -216,8 +232,8 @@ public static class LaunchService
         var inst = InstanceService.Get(instanceId)
                    ?? throw new InvalidOperationException("实例不存在。");
 
-        if (IsRunning(instanceId))
-            throw new InvalidOperationException("该实例已经在运行中。");
+        if (IsRunning(instanceId) && !SettingsService.Current.AllowMultiInstance)
+            throw new InvalidOperationException("该实例已经在运行中。如需同时开多个，请在 设置 → 启动 里开启「允许同一实例多开」。");
 
         if (string.IsNullOrWhiteSpace(inst.VersionId))
             throw new InvalidOperationException("该实例还没有安装游戏版本。");
@@ -439,6 +455,20 @@ public static class LaunchService
     }
 
     /// <summary>读版本 JSON 声明的 Java 主版本要求；没有该字段就返回 0。</summary>
+    /// <summary>
+    /// 该版本是否支持 --quickPlayMultiplayer（1.20 / 23w14a 起加入）。
+    /// 按版本号判断：1.20 及以上、以及 26.x 这类新版本号制都算支持；
+    /// 快照宁可放宽（真正不支持时游戏端会忽略参数，启动日志会给出警告）。
+    /// </summary>
+    private static bool SupportsQuickPlay(string versionId)
+    {
+        var m = System.Text.RegularExpressions.Regex.Match(versionId, @"^(\d+)\.(\d+)");
+        if (!m.Success) return false;
+        var major = int.Parse(m.Groups[1].Value);
+        var minor = int.Parse(m.Groups[2].Value);
+        return major > 1 || minor >= 20;
+    }
+
     private static int ReadDeclaredJavaMajor(JsonElement version)
     {
         if (!version.TryGetProperty("javaVersion", out var jv) || jv.ValueKind != JsonValueKind.Object) return 0;

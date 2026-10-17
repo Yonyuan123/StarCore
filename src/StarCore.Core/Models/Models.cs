@@ -70,6 +70,9 @@ public sealed class Settings
     public bool AutoUpdate { get; set; } = true;
 
     // 下载
+    /// <summary>允许同一实例同时开多个游戏进程（PCL/HMCL 都有）。默认关：两个进程写同一个存档会互相踩。</summary>
+    public bool AllowMultiInstance { get; set; }
+
     public string DownloadSource { get; set; } = "official"; // official | mirror | custom
 
     /// <summary>注册的游戏目录列表（HMCL 的多目录管理）。
@@ -194,6 +197,12 @@ public sealed class InstanceInfo
 
     /// <summary>隐藏的实例不出现在列表与切换菜单里（可在"显示已隐藏"中找回）。</summary>
     public bool Hidden { get; set; }
+
+    /// <summary>
+    /// 启动后直连的服务器地址（host 或 host:port）。
+    /// 仅 1.20+ 支持（走 --quickPlayMultiplayer，不碰 servers.dat 的 NBT）。
+    /// </summary>
+    public string? QuickPlayServer { get; set; }
 
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.Now;
 }

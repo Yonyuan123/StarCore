@@ -591,6 +591,8 @@ function mountList(el) {
       { separator: true },
       { label: '导出为整合包', icon: 'upload', onClick: () => go(SECTION, 'export') },
       { separator: true },
+      { label: '补全缺失文件', icon: 'package-plus',
+        onClick: () => repairFiles(inst) },
       { label: '自定义图标', icon: 'image', onClick: () => setCustomIcon(inst) },
       { separator: true },
       { label: inst.hidden ? '取消隐藏' : '隐藏实例', icon: 'eye-off',
@@ -632,6 +634,20 @@ function mountList(el) {
       await refresh();
     } catch (e) {
       toast({ title: '复制失败', desc: e?.message ?? String(e), kind: 'danger' });
+    }
+  }
+
+  /** 补全缺失文件（PCL 的"补全文件"）：按实例现有配置重跑安装，只补缺的部分。 */
+  async function repairFiles(inst) {
+    try {
+      const r = await invoke('instance.repair', { instanceId: inst.id });
+      toast({
+        title: '开始补全缺失文件',
+        desc: r?.taskId ? '已加入任务中心，可随时查看进度或取消。已下好的文件不会重复下载。' : '已开始。',
+        kind: 'accent', timeout: 8000,
+      });
+    } catch (e) {
+      toast({ title: '无法开始补全', desc: e?.message ?? String(e), kind: 'danger', timeout: 8000 });
     }
   }
 
@@ -767,6 +783,25 @@ function mountOverview(el) {
      * 切换只影响"游戏运行目录"（mods/存档/配置写在哪），
      * 版本与库文件仍在实例自己的目录里 —— 这也是 PCL 的语义。
      */
+    /** 服务器直连输入：失焦即保存，无需点保存按钮。 */
+    function quickPlayInput(inst) {
+      const input = h('input', {
+        class: 'input mono',
+        style: { width: '220px' },
+        placeholder: 'mc.example.com:25565',
+        value: inst.quickPlayServer ?? '',
+      });
+      const commit = async () => {
+        const v = input.value.trim();
+        if (v === (inst.quickPlayServer ?? '')) return;
+        await invoke('instance.update', { id: inst.id, patch: { quickPlayServer: v || null } }).catch(() => {});
+        toast({ title: v ? '已保存，下次启动直连该服务器' : '已清除服务器直连', kind: 'success', timeout: 5000 });
+      };
+      input.addEventListener('change', commit);
+      input.addEventListener('blur', commit);
+      return input;
+    }
+
     function gameDirSel(inst, dirList) {
       const shared = (inst.gameDirMode ?? 'isolated') === 'shared';
       const sel = customSelect({
@@ -847,6 +882,12 @@ function mountOverview(el) {
                 ? '与其他实例共用一个目录（版本隔离已关闭）。切回隔离即可恢复独立。'
                 : 'mods、存档、配置都在这个实例自己的目录里，与其他实例互不影响。' })),
           h('div', { class: 'set-row__control' }, gameDirSel(inst, dirs))),
+        h('div', { class: 'set-row' },
+          h('div', { class: 'grow' },
+            h('div', { class: 'set-row__label' }, '启动后直连服务器'),
+            h('div', { class: 'set-row__desc',
+              text: '填 host 或 host:port，启动时直接进入该服务器（需 1.20+）。留空则正常启动。' })),
+          h('div', { class: 'set-row__control' }, quickPlayInput(inst))),
         h('div', { class: 'set-row' }, h('div', { class: 'grow' }, h('div', { class: 'set-row__label', text: '磁盘占用' })),
           h('div', { class: 'set-row__control' }, h('span', { class: 'mono', style: { fontSize: 'var(--fs-sm)' }, text: fmtBytes(inst.sizeBytes ?? 0) }))),
         h('div', { class: 'set-row' }, h('div', { class: 'grow' }, h('div', { class: 'set-row__label', text: '上次游玩' })),
@@ -1142,6 +1183,57 @@ function mountExport(el) {
 }
 
 /* —— 高级 —— */
+/** 版本 JSON 高级编辑器：读取当前生效的版本描述，校验语法后写回（原文件自动备份）。 */
+async function editVersionJson(inst) {
+  let data;
+  try {
+    data = await invoke('version.json.get', { instanceId: inst.id });
+  } catch (e) {
+    toast({ title: '无法读取版本 JSON', desc: e?.message ?? String(e), kind: 'danger', timeout: 8000 });
+    return;
+  }
+  if (!data || data.ok === false) {
+    toast({ title: '无法读取版本 JSON', desc: data?.message ?? '未安装版本', kind: 'danger', timeout: 8000 });
+    return;
+  }
+
+  const ta = h('textarea', {
+    class: 'textarea mono',
+    rows: '18',
+    spellcheck: 'false',
+    style: { fontSize: 'var(--fs-xs)', fontFamily: 'var(--font-mono)', minHeight: '420px', width: '100%' },
+  });
+  ta.value = data.content ?? '';
+
+  const status = h('div', { class: 'field__hint', style: { marginTop: 'var(--sp-3)' }, text: `文件：${data.path}` });
+
+  const res = await dialog({
+    title: '编辑版本 JSON', icon: 'terminal', width: 860,
+    body: h('div', { class: 'col' },
+      h('div', { class: 'field__hint', style: { marginBottom: 'var(--sp-4)' },
+        text: '这是 Minecraft 官方的版本描述文件。改错会导致实例无法启动 —— 保存时会做语法校验，且原文件自动备份为 .bak。' }),
+      ta,
+      status,
+    ),
+    actions: [
+      { label: '取消', variant: 'ghost', value: null },
+      { label: '校验并保存', variant: 'primary', value: 'save' },
+    ],
+  });
+  if (res !== 'save') return;
+
+  try {
+    const r = await invoke('version.json.save', { instanceId: inst.id, content: ta.value });
+    if (r && r.ok === false) {
+      toast({ title: '保存被拒绝', desc: r.message ?? 'JSON 语法错误', kind: 'danger', timeout: 0 });
+      return;
+    }
+    toast({ title: '版本 JSON 已保存', desc: r?.message ?? '原文件已备份', kind: 'success' });
+  } catch (e) {
+    toast({ title: '保存失败', desc: e?.message ?? String(e), kind: 'danger', timeout: 0 });
+  }
+}
+
 function mountAdvanced(el) {
   const scroll = instanceShell(el, { title: '高级设置' });
   function paint() {
@@ -1212,6 +1304,7 @@ function mountAdvanced(el) {
           await invoke('instance.update', { id: inst.id, patch: { jvmArgs: '', gameArgs: '' } }).catch(() => {});
           paint();
         } }),
+        button('编辑版本 JSON', { variant: 'secondary', icon: 'terminal', onClick: () => editVersionJson(inst) }),
       ),
     ));
   }

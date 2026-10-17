@@ -323,6 +323,7 @@ public static class InstanceService
                     case "gameDirMode": t.GameDirMode = v?.ToString() == "shared" ? "shared" : "isolated"; break;
                     case "sharedGameDir": t.SharedGameDir = string.IsNullOrWhiteSpace(v?.ToString()) ? null : v!.ToString(); break;
                     case "hidden": t.Hidden = ToBool(v, t.Hidden); break;
+                    case "quickPlayServer": t.QuickPlayServer = string.IsNullOrWhiteSpace(v?.ToString()) ? null : v!.ToString()!.Trim(); break;
                     default: Logger.Debug($"[instance] 忽略未知字段 {k}"); break;
                 }
             }

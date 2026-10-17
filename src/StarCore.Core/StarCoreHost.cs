@@ -198,6 +198,9 @@ public static class StarCoreHost
                 ? OpResult.Success("已删除") : OpResult.Fail("删除失败。"),
             "instance.update" => InstanceService.Update(Long(p, "id") ?? 0, ToDict(p)),
             "instance.setIcon" => new { url = InstanceService.SetCustomIcon(Long(p, "id") ?? 0, Str(p, "path") ?? "") },
+            "instance.repair" => RepairInstance(p),
+            "version.json.get" => VersionJsonGet(Long(p, "instanceId") ?? 0),
+            "version.json.save" => await VersionJsonSaveAsync(Long(p, "instanceId") ?? 0, Str(p, "content") ?? "", ct),
             "instance.setActive" => InstanceService.SetActive(Long(p, "id") ?? 0)
                 ? OpResult.Success() : OpResult.Fail("实例不存在。"),
             "instance.duplicate" => InstanceService.Duplicate(Long(p, "id") ?? 0, Str(p, "name")),
@@ -1083,6 +1086,76 @@ public static class StarCoreHost
     /// 虽然这里的安装只是写文件、不会立即报错，但失败时用户看到的状态会乱，
     /// 而且任务进度会跳动得无法理解。顺序装的总耗时对几个文件来说可以忽略。
     /// </summary>
+    /// <summary>
+    /// 补全缺失文件（PCL 的"补全文件"）：按实例现有的 版本 / 加载器 / 加载器版本
+    /// 重跑一次安装。已下好且大小一致的文件会被跳过，所以只补缺的部分，不会重下。
+    /// </summary>
+    private static object RepairInstance(JsonElement p)
+    {
+        var id = Long(p, "instanceId") ?? 0;
+        var inst = InstanceService.Get(id)
+                   ?? throw new InvalidOperationException("实例不存在。");
+        if (string.IsNullOrWhiteSpace(inst.VersionId))
+            return OpResult.Fail("该实例还没有安装版本，无需补全。");
+
+        var loader = string.IsNullOrWhiteSpace(inst.Loader) ? "vanilla" : inst.Loader!;
+        var taskId = TaskCenter.Create($"补全缺失文件 · {inst.Name}");
+        var instId = inst.Id;
+        var versionId = inst.VersionId!;
+        var loaderVersion = inst.LoaderVersion;
+
+        _ = Task.Run(() => InstallService.InstallAsync(
+            instId, versionId, loader, loaderVersion, taskId, CancellationToken.None));
+
+        return new { taskId };
+    }
+
+    /// <summary>实例实际生效的版本 JSON 文件路径（编辑器读写的就是它）。</summary>
+    private static string VersionJsonPath(InstanceInfo inst)
+    {
+        var launchId = LaunchService.ResolveLaunchVersionId(inst);
+        return Path.Combine(InstanceService.VersionDir(inst.Path), launchId, $"{launchId}.json");
+    }
+
+    private static object VersionJsonGet(long instanceId)
+    {
+        var inst = InstanceService.Get(instanceId)
+                   ?? throw new InvalidOperationException("实例不存在。");
+        var path = VersionJsonPath(inst);
+        if (!File.Exists(path))
+            return OpResult.Fail("找不到版本 JSON 文件。请先安装版本。");
+        return new { path, content = File.ReadAllText(path) };
+    }
+
+    private static async Task<object> VersionJsonSaveAsync(long instanceId, string content, CancellationToken ct)
+    {
+        var inst = InstanceService.Get(instanceId)
+                   ?? throw new InvalidOperationException("实例不存在。");
+
+        // 保存前先做 JSON 语法校验：版本 JSON 写坏的话，这个实例就再也启动不了了，
+        // 而报错会表现为"找不到主类"之类的天书。在这里拦住并给出确切位置。
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(content);
+        }
+        catch (System.Text.Json.JsonException ex)
+        {
+            return OpResult.Fail($"JSON 语法错误：{ex.Message}");
+        }
+
+        var path = VersionJsonPath(inst);
+        if (!File.Exists(path))
+            return OpResult.Fail("找不到版本 JSON 文件。");
+
+        // 覆盖前备份一份，改坏了还能回来
+        var backup = path + ".bak";
+        File.Copy(path, backup, true);
+
+        await File.WriteAllTextAsync(path, content, ct);
+        Logger.Info($"[instance] 版本 JSON 已更新（原文件备份为 {Path.GetFileName(backup)}）：{path}");
+        return OpResult.Success("已保存（原文件已备份为 .bak）");
+    }
+
     private static object StartInstallPlan(JsonElement p)
     {
         var instanceId = Long(p, "instanceId") ?? 0;
