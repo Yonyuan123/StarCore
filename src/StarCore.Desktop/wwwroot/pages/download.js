@@ -40,6 +40,15 @@ let versionFilter = 'all';
 const AUTO_INSTANCE = 0;
 let installTargetId = AUTO_INSTANCE;
 
+/**
+ * Fabric API 在 Modrinth 的项目 ID（slug 是 fabric-api）。
+ *
+ * 装 Fabric 加载器时顺带把它装上：在 Fabric 生态里它不是"可选的增强模组"，
+ * 而是绝大多数模组的事实前提 —— 没有它，模组会被静默跳过。
+ * 新手通常不知道这一点，装完模组发现游戏里什么都没有，只会觉得启动器有问题。
+ */
+const FABRIC_API_ID = 'P7dR8mSH';
+
 /* ===========================================================================
    一键安装
    ---------------------------------------------------------------------------
@@ -196,6 +205,70 @@ async function copyText(text) {
  * 开始一个安装任务：内核返回 taskId 后交给任务中心跟踪。
  * 返回内核的完整响应（含自动创建的实例 id / 名称），调用方据此显示反馈。
  */
+/**
+ * 给刚装好 Fabric 的实例补上 Fabric API。
+ *
+ * 版本由**用户所选的游戏版本**决定（Fabric API 的版本号跟着游戏版本走，
+ * 例如 0.92.x 对应 1.20.1），而不是跟着 Fabric 加载器版本 —— 加载器版本
+ * 只影响运行时，与 API 的兼容性无关。
+ *
+ * 这里刻意不让失败中断主流程：加载器本身已经装好了，
+ * 少一个 API 是"模组可能不生效"，而抛错会让用户以为整个安装失败。
+ */
+async function installFabricApi(instanceId, gameVersion) {
+  if (!instanceId || !gameVersion) return;
+
+  try {
+    const r = await invoke('modrinth.versions', { id: FABRIC_API_ID });
+    const list = r?.versions ?? (Array.isArray(r) ? r : []);
+    if (!list.length) return;
+
+    const compatible = list
+      .filter((v) => {
+        const gvs = v.gameVersions ?? [];
+        const lds = (v.loaders ?? []).map((x) => String(x).toLowerCase());
+        return gvs.includes(gameVersion) && lds.includes('fabric');
+      })
+      // 上游（Modrinth）本身就是按发布时间倒序，但这里显式再排一次 ——
+      // 后端重新映射过字段，不该让"选哪个"依赖上游的返回顺序。
+      .sort((a, b) => String(b.datePublished ?? '').localeCompare(String(a.datePublished ?? '')));
+
+    // 优先正式版；某个游戏版本只出了测试版时也认
+    const hit = compatible.find((v) => !v.versionType || v.versionType === 'release')
+             ?? compatible[0];
+
+    if (!hit) {
+      toast({
+        title: 'Fabric API 没有匹配的版本',
+        desc: `Modrinth 上没有面向 ${gameVersion} 的 Fabric API，需要时可以稍后手动安装。`,
+        kind: 'warning', timeout: 9000,
+      });
+      return;
+    }
+
+    const res = await invoke('modrinth.install', {
+      projectId: FABRIC_API_ID,
+      versionId: hit.id,
+      instanceId,
+      kind: 'mod',
+      gameVersion,
+      loader: 'fabric',
+    });
+
+    if (res?.ok === false) {
+      toast({ title: 'Fabric API 安装失败', desc: res?.message ?? '未知原因', kind: 'warning', timeout: 8000 });
+    } else {
+      toast({
+        title: 'Fabric API 已一并安装',
+        desc: `${hit.versionNumber ?? hit.name ?? hit.id} —— 大多数 Fabric 模组都依赖它`,
+        kind: 'success', timeout: 7000,
+      });
+    }
+  } catch (e) {
+    toast({ title: 'Fabric API 安装失败', desc: e?.message ?? String(e), kind: 'warning', timeout: 8000 });
+  }
+}
+
 async function startInstall(payload, title, trackLaunch = true) {
   try {
     const r = await invoke('version.install', payload);
@@ -760,6 +833,18 @@ function createLoadersPage() {
             text: inst
               ? '加载器版本留空时由启动器按游戏版本自动选择；同名文件不会重复下载。'
               : '装完会自动建一个以「版本-加载器」命名的实例，不需要你先去实例页准备。' }),
+          // 提前说清楚会附带装什么，避免用户事后在 mods 里发现一个没见过的 jar
+          loader.id === 'fabric'
+            ? h('div', {
+                class: 'dim',
+                style: {
+                  fontSize: 'var(--fs-xs)', marginTop: 'var(--sp-3)',
+                  display: 'flex', alignItems: 'center', gap: 'var(--sp-2)',
+                },
+              },
+                icon('info', 'xs'),
+                h('span', { text: '会一并安装与该游戏版本匹配的 Fabric API（大多数 Fabric 模组的前提）' }))
+            : null,
           h('div', { class: 'row', style: { gap: 'var(--sp-6)', marginTop: 'var(--sp-6)', flexWrap: 'wrap' } },
             h('div', { class: 'field grow', style: { minWidth: '200px' } },
               h('label', { class: 'field__label', text: '游戏版本' }), gameSel),
@@ -801,6 +886,12 @@ function createLoadersPage() {
           desc: `${loader.name}${lv ? ` ${lv}` : ''} → ${versionId}${r.created ? `（${r.instanceName}）` : ''}`,
           kind: 'accent',
         });
+
+        // Fabric：顺手把 Fabric API 装上。
+        // 放在 toast 之后，让用户先看到"加载器开始装了"，再看到"API 也装好了"。
+        if (loader.id === 'fabric' && r.instanceId) {
+          await installFabricApi(r.instanceId, versionId);
+        }
       }
 
       function paint() {

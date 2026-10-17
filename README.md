@@ -8,8 +8,8 @@
 [![.NET](https://img.shields.io/badge/.NET-10-512BD4)](https://dotnet.microsoft.com/)
 [![platform](https://img.shields.io/badge/platform-Windows%2010%2F11-0078D4)](#下载)
 
-StarCore 是一个从零实现的 Minecraft 启动器：内核用 .NET 10 编写，界面用 HTML/CSS/JS 由
-WebView2 呈现。它不依赖 PCL、HMCL 等既有启动器的代码，所有功能都是自己实现的。
+StarCore 是一个现代化 Minecraft 启动器。.NET 10 内核负责版本解析、下载与启动，
+界面用原生 HTML/CSS/ES Module 经 WebView2 渲染，不引入任何前端框架。
 
 ---
 
@@ -196,7 +196,7 @@ grep "\[自检" "%APPDATA%\StarCore\logs\*_launcher.log"
 - 责任方：StarCore 项目 —— 一个开源、非商业的独立项目。
 - 联系方式：本项目仓库的 Issues 页面，或 [SECURITY.md](SECURITY.md) 中列出的邮件地址。
 
-本项目**不隶属于、也不代表** PCL、HMCL、BlockHelm 或任何其他启动器项目。
+StarCore 与 PCL、HMCL、BlockHelm 等项目没有隶属或背书关系。
 
 ---
 

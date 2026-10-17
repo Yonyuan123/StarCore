@@ -665,8 +665,23 @@ export function avatar(label, { size = 'md', src, round, className, tip } = {}) 
     class: ['avatar', `avatar--${size}`, round && 'avatar--round', className],
     'data-tip': tip || null,
   });
-  if (src) el.appendChild(h('img', { src, alt: label ?? '', loading: 'lazy' }));
-  else el.appendChild(h('span', { text: (label ?? '?').slice(0, 1).toUpperCase() }));
+
+  const fallback = () => {
+    if (el.querySelector('span')) return;
+    el.appendChild(h('span', { text: (label ?? '?').slice(0, 1).toUpperCase() }));
+  };
+
+  if (src) {
+    const img = h('img', { src, alt: label ?? '', loading: 'lazy' });
+    // 加载失败就回退成首字母。
+    // 不这么做的话，路径一旦不对（比如调用方传的是内核给的 "blocks/xxx.png"
+    // 裸路径，少了 assets/img/ 前缀），界面上会出现浏览器的破图图标，
+    // 而且 alt 文本会被圆形裁成半截，看起来像"图片显示错误"。
+    img.addEventListener('error', () => { img.remove(); fallback(); });
+    el.appendChild(img);
+  } else {
+    fallback();
+  }
   return el;
 }
 
