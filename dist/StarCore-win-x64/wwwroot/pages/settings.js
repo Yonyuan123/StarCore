@@ -774,7 +774,7 @@ function mountJava(el) {
 
   async function addManual() {
     try {
-      const r = await invoke('system.pickFile', { title: '选择 javaw.exe', filter: 'Java 可执行文件 (javaw.exe;java.exe)|javaw.exe;java.exe' });
+      const r = await invoke('system.pickFile', { title: '选择 javaw.exe', filter: 'Java 可执行文件 (*.exe)|*.exe' });
       if (!r?.path) return;
       const info = await invoke('java.validate', { path: r.path });
       if (info && info.valid === false) {

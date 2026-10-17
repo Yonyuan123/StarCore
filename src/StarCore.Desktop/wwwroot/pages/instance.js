@@ -638,7 +638,9 @@ function mountList(el) {
   async function setCustomIcon(inst) {
     const r = await invoke('system.pickFile', {
       title: '选择封面图片',
-      filter: '图片 (png;jpg;jpeg;webp;gif)|png;jpg;jpeg;webp;gif',
+      // Win32/WPF 的过滤器格式要求模式段带 *. 前缀；写裸扩展名（png;jpg）
+      // 会让对话框里所有文件都被过滤掉，看起来就是"选不了图"。
+      filter: '图片 (*.png;*.jpg;*.jpeg;*.webp;*.gif)|*.png;*.jpg;*.jpeg;*.webp;*.gif',
     }).catch(() => null);
     if (!r?.path) return;
     try {
