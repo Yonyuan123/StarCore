@@ -54,9 +54,11 @@ jobs:
         # 前端检查上面已经跑过，这里 skip 避免重复
         run: ./build.sh Debug skip
 
+      # CI 只需要证明"能构建出一个可运行的产物"，产自包含版会把 130MB 运行时
+      # 也下载一遍，纯属浪费。真正的自包含包由 release.yml 负责。
       - name: 编译并发布（Release，框架依赖）
         shell: bash
-        run: ./publish.sh
+        run: ./publish.sh --framework-dependent
 
       - name: 结果摘要
         shell: bash

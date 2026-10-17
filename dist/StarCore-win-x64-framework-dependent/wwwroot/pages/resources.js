@@ -14,7 +14,7 @@ import { invoke, on } from '../scripts/bridge.js';
 import { getState, subscribe, upsertTask } from '../scripts/store.js';
 import {
   h, fill, icon, iconButton, button, emptyState, chip, avatar,
-  toast, menu, skeleton, fmtCount, fmtAgo, fmtDate, switchEl,
+  toast, menu, skeleton, fmtCount, fmtAgo, fmtDate, switchEl, blockCover,
 } from '../scripts/ui.js';
 import { go, back } from '../scripts/router.js';
 import { RESOURCE_KINDS } from '../scripts/nav.js';
@@ -643,27 +643,91 @@ function createDetail(el) {
     );
   }
 
+  /**
+   * 只保留能装到当前实例上的资源版本。
+   *
+   * 不筛的话，一个热门模组动辄几十个版本、横跨十几个游戏版本和四五种加载器，
+   * 下拉框一展开就是一面墙（实测 40 条能占满整屏），根本没法看。
+   * PCL / HMCL 都是先锁定"装到哪个实例"，再只列兼容的版本。
+   */
+  function compatibleVersions() {
+    // 注意：这里不能引用 render() 里的局部 `instances`。
+    // 本函数定义在页面作用域，而 `const instances = getState().instances`
+    // 是 render 内的局部变量 —— 直接引用会抛 ReferenceError，
+    // 表现是详情页一直转圈（reload 的 finally 被异常打断，loading 回不到 false）。
+    const all = getState().instances ?? [];
+    const inst = all.find((i) => i.id === selectedInstanceId);
+    if (!inst) return versions;
+
+    const gv = inst.versionId ?? '';
+    const ld = inst.loader && inst.loader !== 'vanilla' ? String(inst.loader).toLowerCase() : null;
+
+    return versions.filter((v) => {
+      // 游戏版本必须对得上。一个资源版本通常支持一个小范围，取"包含"即可。
+      const gvs = v.gameVersions ?? [];
+      if (gv && gvs.length && !gvs.includes(gv)) return false;
+
+      // 只有模组才严格比加载器。资源包 / 数据包 / 光影 / 地图的 loaders
+      // 语义各不相同（资源包常是 ["minecraft"]，光影是 ["iris"]），
+      // 一刀切会把本来能装的版本也筛掉。
+      if (projectKind === 'mod' && ld) {
+        const lds = (v.loaders ?? []).map((x) => String(x).toLowerCase());
+        if (lds.length && !lds.includes(ld)) return false;
+      }
+      return true;
+    });
+  }
+
   function versionPicker() {
-    const cur = versions.find((v) => v.id === selectedVersionId);
+    const list = compatibleVersions();
+    const cur = list.find((v) => v.id === selectedVersionId)
+             ?? versions.find((v) => v.id === selectedVersionId);
+
+    // 已过滤的列表通常只有几条；仍给个上限，防止个别资源的元数据缺失导致整屏铺开。
+    const LIMIT = 30;
+    const shown = list.slice(0, LIMIT);
+
     const label = h('span', { text: cur ? (cur.versionNumber ?? cur.name ?? cur.id) : '选择版本' });
     const btn = h('button', {
       class: 'filter-btn',
       type: 'button',
       'data-active': cur ? 'true' : 'false',
-      onClick: () => menu(btn, versions.length
-        ? versions.slice(0, 40).map((v) => ({
-            label: v.versionNumber ?? v.name ?? v.id,
-            hint: [...(v.gameVersions ?? []).slice(0, 2), ...(v.loaders ?? [])].join(' · '),
-            icon: v.id === selectedVersionId ? 'check' : null,
-            onClick: () => { selectedVersionId = v.id; render(); },
-          }))
-        : [{ label: '暂无可安装版本', icon: 'info' }]),
+      onClick: () => menu(btn, shown.length
+        ? [
+            ...shown.map((v) => ({
+              label: v.versionNumber ?? v.name ?? v.id,
+              // 游戏版本已被筛成同一个，这里只留加载器与发布通道，读起来更省事
+              hint: [
+                ...(v.loaders ?? []).slice(0, 2),
+                v.versionType && v.versionType !== 'release' ? v.versionType : null,
+              ].filter(Boolean).join(' · '),
+              icon: v.id === selectedVersionId ? 'check' : null,
+              onClick: () => { selectedVersionId = v.id; render(); },
+            })),
+            ...(list.length > LIMIT
+              ? [{ separator: true }, { label: `另有 ${list.length - LIMIT} 个版本未列出`, disabled: true }]
+              : []),
+          ]
+        : [{
+            label: selectedInstanceId ? '这个实例没有兼容版本' : '暂无可安装版本',
+            hint: selectedInstanceId ? '换一个游戏版本或加载器不同的实例试试' : '',
+            icon: 'info', disabled: true,
+          }]),
     }, label, icon('chevron-down', 'xs'));
     return btn;
   }
 
   function installTarget(inst) {
-    const pick = () => { selectedInstanceId = inst.id; render(); };
+    const pick = () => {
+      selectedInstanceId = inst.id;
+      // 换实例后，原先选中的资源版本多半不再兼容（游戏版本/加载器变了），
+      // 顺手挑一个能用的；否则会出现"看着选中了、点安装却装不上"的状态。
+      const list = compatibleVersions();
+      if (!list.some((v) => v.id === selectedVersionId)) {
+        selectedVersionId = list[0]?.id ?? null;
+      }
+      render();
+    };
     return h('div', {
       class: 'install-target',
       role: 'radio',
@@ -672,7 +736,9 @@ function createDetail(el) {
       onClick: pick,
       onKeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); } },
     },
-      avatar(inst.name, { size: 'sm', src: inst.cover, round: true }),
+      // inst.cover 是内核给的裸路径（blocks/xxx.png），avatar 不会自己补
+      // assets/img/ 前缀 —— 直接传会 404，界面上就是一个破图图标。
+      avatar(inst.name, { size: 'sm', src: blockCover(inst.cover), round: true }),
       h('div', { class: 'grow', style: { minWidth: '0' } },
         h('div', { class: 'truncate', style: { fontSize: 'var(--fs-sm)', fontWeight: 'var(--fw-medium)' }, text: inst.name ?? '未命名实例' }),
         h('div', { class: 'truncate', style: { fontSize: 'var(--fs-xs)', color: 'var(--text-3)' },
@@ -912,7 +978,7 @@ function createDetail(el) {
     if (selectedInstanceId && !instances.some((i) => i.id === selectedInstanceId)) {
       selectedInstanceId = getState().activeInstanceId ?? instances[0]?.id ?? null;
     }
-    installCard = h('div', { class: 'card', style: { position: 'sticky', top: 'var(--sp-4)' } },
+    installCard = h('div', { class: 'card install-card' },
       h('div', { style: { fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-medium)' }, text: '选择要安装到的游戏' }),
       h('div', { class: 'dim', style: { fontSize: 'var(--fs-xs)', marginTop: '3px', marginBottom: 'var(--sp-5)' }, text: '安装后会出现在该实例的内容列表中。' }),
       h('div', { class: 'row', style: { gap: 'var(--sp-4)', marginBottom: 'var(--sp-5)' } }, versionPicker()),

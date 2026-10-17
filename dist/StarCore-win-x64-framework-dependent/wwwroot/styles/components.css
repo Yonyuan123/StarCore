@@ -463,9 +463,24 @@ kbd {
   width: 100%;
 }
 
+/* 搜索框的前导图标。
+   这里同时匹配「.search 的直接子 .icon」和显式标了 .icon--lead 的图标。
+
+   为什么不能只认 .icon--lead：icon() 只输出 `icon icon--sm`，不带 --lead。
+   历史上只有 resources.js 一处手动补了这个类，其余（实例列表、账户、下载、
+   日志、实例详情）都是 icon('search') 直接塞进 .search。那些页面的图标便
+   成了普通 flex 项 —— 把输入框挤到右边，而输入框又留着 36px 的左内边距，
+   表现出来就是「图标跑到框外面，placeholder 前面还有一大段空白」。
+   靠"记得加类名"来维持布局，迟早还会漏，所以判据改成结构本身。 */
+.search > .icon,
 .search .icon--lead {
   position: absolute;
   left: 12px;
+  /* 绝对定位的元素不参与 flex 的 align-items，必须自己居中。
+     原来只写了 left，垂直位置靠 static position 恰好落在中间 —— 能显示，
+     但那是巧合：一旦 .search 的 align-items 或高度变了就会偏。 */
+  top: 50%;
+  transform: translateY(-50%);
   color: var(--text-3);
   pointer-events: none;
   transition: color var(--dur-fast) var(--ease-out);
@@ -476,6 +491,7 @@ kbd {
   padding-right: 34px;
 }
 
+.search:focus-within > .icon,
 .search:focus-within .icon--lead { color: var(--accent); }
 
 .search__clear {

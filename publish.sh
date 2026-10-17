@@ -83,13 +83,20 @@ fi
 find "$OUT" -name '*.pdb' -delete 2>/dev/null
 find "$OUT" -name '*.xml' -delete 2>/dev/null
 
-# 6) 硬校验一：界面资源与源码逐文件一致。
-#    这一步是整份脚本的重点，见文件头。
+# 6) 界面资源：先无条件覆盖一次，再做硬校验。
+#
+# 项目里 wwwroot 靠 csproj 的 robocopy 目标同步，但实测在增量 publish 下
+# 那个目标可能不执行 —— 产物里会留着上一次的界面（旧的 css/js）。
+# 包照样能启动、界面也能显示，只是显示的是旧版本，极难发现。
+# 所以这里不依赖它：直接覆盖一次，再逐文件哈希确认。
+if [ -d "src/StarCore.Desktop/wwwroot" ]; then
+  mkdir -p "$OUT/wwwroot"
+  cp -r src/StarCore.Desktop/wwwroot/. "$OUT/wwwroot/"
+fi
+
 if ! python _tools/verify-web-assets.py src/StarCore.Desktop/wwwroot "$OUT/wwwroot"; then
   echo
   echo "✗ 产物里的界面资源不是最新的，已中止。"
-  echo "  通常是 dotnet publish 走了增量导致 robocopy 目标没执行。"
-  echo "  重跑本脚本即可（第 3 步会先清空输出目录）。"
   exit 1
 fi
 
