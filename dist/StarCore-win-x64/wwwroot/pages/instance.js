@@ -777,6 +777,7 @@ function mountOverview(el) {
     if (!inst) { fill(scroll, emptyState({ icon: 'boxes', title: '没有选中的实例', desc: '先在左侧选择一个实例。' })); return; }
 
     const dirs = getState().settings?.gameDirs ?? [];
+    let javaListLoading = false;
 
     /**
      * 游戏目录选择器：隔离（默认）或共用某个已注册目录。
@@ -844,7 +845,17 @@ function mountOverview(el) {
     const memLabel = h('span', { class: 'mono', style: { fontSize: 'var(--fs-sm)', minWidth: '78px', textAlign: 'right' }, text: `${(inst.memoryMb ?? 4096) / 1024} GB` });
     memSlider.addEventListener('input', () => { memLabel.textContent = `${(memSlider.value / 1024).toFixed(1)} GB`; });
 
-    const javas = getState().javas;
+    let javas = getState().javas;
+    if (!javas.length && !javaListLoading) {
+      // state 为空多半是"还没进过设置页"，主动查一次，拿到后重绘本页。
+      // javaListLoading 防止 paint 递归重入。
+      javaListLoading = true;
+      invoke('java.list').then((r) => {
+        setState({ javas: r?.javas ?? [] });
+        javaListLoading = false;
+        paint();
+      }).catch(() => { javaListLoading = false; });
+    }
     const javaSel = customSelect({
       value: inst.javaPath ?? '',
       ariaLabel: 'Java 运行时',

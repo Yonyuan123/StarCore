@@ -761,6 +761,9 @@ function mountJava(el) {
   async function load() {
     const r = await invoke('java.list').catch(() => null);
     javas = r?.javas ?? [];
+    // 写进全局 state：实例概览的 Java 选择器也读这里。
+    // 之前只存在本页局部变量里，概览永远看到空数组、误报"未检测到 Java"。
+    setState({ javas });
     paint();
   }
 
