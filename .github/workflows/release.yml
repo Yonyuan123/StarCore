@@ -96,7 +96,7 @@ jobs:
         run: python _tools/verify-package.py out/StarCore-win-x64-selfcontained.zip
 
       - name: 创建 Release 并上传
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           # push tag 时取标签名；手动重跑时取输入的标签。
           tag_name: ${{ inputs.tag || github.ref_name }}
