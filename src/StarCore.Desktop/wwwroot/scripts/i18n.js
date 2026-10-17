@@ -57,6 +57,20 @@ const en = {
   '镜像源（BMCLAPI）': 'Mirror (BMCLAPI)',
   '官方源': 'Official',
   '自定义': 'Custom',
+
+  // —— 第 5 批补充：高频操作 ——
+  '界面语言已切换': 'Language changed',
+  '扫描': 'Scan', '测试': 'Test', '运行自检': 'Self-test', '添加': 'Add',
+  '编辑': 'Edit', '导入': 'Import', '刷新': 'Refresh',
+  '推荐': 'Recommended', '更多': 'More', '启用': 'Enable', '禁用': 'Disable',
+  '已保存': 'Saved', '已删除': 'Deleted', '已启用': 'Enabled', '已禁用': 'Disabled',
+  '开始安装': 'Install Now', '安装': 'Install', '更新': 'Update',
+  '一键安装': 'One-click Install', '立即更新': 'Update Now',
+  '源测速': 'Speed Test', '打开数据目录': 'Open Data Folder',
+  '添加目录': 'Add Folder', '已注册的目录': 'Registered Folders',
+  '没有选中的实例': 'No instance selected', '先在左侧选择一个实例。': 'Select an instance on the left first.',
+  '还没有配置 Java': 'No Java configured yet', '正在检测…': 'Detecting…',
+  '移除': 'Remove', '排序与显示': 'Sort & Visibility', '设置': 'Settings',
 };
 
 /** fr —— Français */
@@ -95,6 +109,20 @@ const fr = {
   '允许同一实例多开': 'Autoriser plusieurs instances identiques',
   '镜像源（BMCLAPI）': 'Miroir (BMCLAPI)',
   '官方源': 'Officielle', '自定义': 'Personnalisée',
+
+  // —— Compléments ——
+  '界面语言已切换': 'Langue modifiée',
+  '扫描': 'Scanner', '测试': 'Tester', '运行自检': 'Auto-test', '添加': 'Ajouter',
+  '编辑': 'Modifier', '导入': 'Importer', '刷新': 'Actualiser',
+  '推荐': 'Recommandé', '更多': 'Plus', '启用': 'Activer', '禁用': 'Désactiver',
+  '已保存': 'Enregistré', '已删除': 'Supprimé', '已启用': 'Activé', '已禁用': 'Désactivé',
+  '开始安装': 'Installer', '安装': 'Installer', '更新': 'Mettre à jour',
+  '一键安装': 'Installation en 1 clic', '立即更新': 'Mettre à jour',
+  '源测速': 'Test de vitesse', '打开数据目录': 'Ouvrir les données',
+  '添加目录': 'Ajouter un dossier', '已注册的目录': 'Dossiers enregistrés',
+  '没有选中的实例': 'Aucune instance sélectionnée', '先在左侧选择一个实例。': 'Sélectionnez une instance à gauche.',
+  '还没有配置 Java': 'Aucun Java configuré', '正在检测…': 'Détection…',
+  '移除': 'Retirer', '排序与显示': 'Tri et affichage',
 };
 
 /** ru — Русский */
@@ -133,6 +161,20 @@ const ru = {
   '允许同一实例多开': 'Разрешить несколько копий сборки',
   '镜像源（BMCLAPI）': 'Зеркало (BMCLAPI)',
   '官方源': 'Официальный', '自定义': 'Свой',
+
+  // —— Дополнения ——
+  '界面语言已切换': 'Язык изменён',
+  '扫描': 'Сканировать', '测试': 'Тест', '运行自检': 'Проверка', '添加': 'Добавить',
+  '编辑': 'Изменить', '导入': 'Импорт', '刷新': 'Обновить',
+  '推荐': 'Рекомендуется', '更多': 'Ещё', '启用': 'Включить', '禁用': 'Отключить',
+  '已保存': 'Сохранено', '已删除': 'Удалено', '已启用': 'Включено', '已禁用': 'Отключено',
+  '开始安装': 'Установить', '安装': 'Установить', '更新': 'Обновить',
+  '一键安装': 'Установка в 1 клик', '立即更新': 'Обновить сейчас',
+  '源测速': 'Тест скорости', '打开数据目录': 'Открыть данные',
+  '添加目录': 'Добавить папку', '已注册的目录': 'Зарегистрированные папки',
+  '没有选中的实例': 'Сборка не выбрана', '先在左侧选择一个实例。': 'Выберите сборку слева.',
+  '还没有配置 Java': 'Java не настроена', '正在检测…': 'Поиск…',
+  '移除': 'Убрать', '排序与显示': 'Сортировка',
 };
 
 /** es — Español */
@@ -171,6 +213,20 @@ const es = {
   '允许同一实例多开': 'Permitir instancias duplicadas',
   '镜像源（BMCLAPI）': 'Espejo (BMCLAPI)',
   '官方源': 'Oficial', '自定义': 'Personalizada',
+
+  // —— Complementos ——
+  '界面语言已切换': 'Idioma cambiado',
+  '扫描': 'Escanear', '测试': 'Probar', '运行自检': 'Autotest', '添加': 'Añadir',
+  '编辑': 'Editar', '导入': 'Importar', '刷新': 'Actualizar',
+  '推荐': 'Recomendado', '更多': 'Más', '启用': 'Activar', '禁用': 'Desactivar',
+  '已保存': 'Guardado', '已删除': 'Eliminado', '已启用': 'Activado', '已禁用': 'Desactivado',
+  '开始安装': 'Instalar', '安装': 'Instalar', '更新': 'Actualizar',
+  '一键安装': 'Instalación 1 clic', '立即更新': 'Actualizar ahora',
+  '源测速': 'Test de velocidad', '打开数据目录': 'Abrir datos',
+  '添加目录': 'Añadir carpeta', '已注册的目录': 'Carpetas registradas',
+  '没有选中的实例': 'Sin instancia', '先在左侧选择一个实例。': 'Elige una instancia a la izquierda.',
+  '还没有配置 Java': 'Sin Java configurado', '正在检测…': 'Detectando…',
+  '移除': 'Quitar', '排序与显示': 'Ordenar y mostrar',
 };
 
 /** ar — العربية */
@@ -209,6 +265,20 @@ const ar = {
   '允许同一实例多开': 'السماح بتشغيل النسخة أكثر من مرة',
   '镜像源（BMCLAPI）': 'مرآة (BMCLAPI)',
   '官方源': 'رسمي', '自定义': 'مخصص',
+
+  // —— إضافات ——
+  '界面语言已切换': 'تم تغيير اللغة',
+  '扫描': 'فحص', '测试': 'اختبار', '运行自检': 'اختبار ذاتي', '添加': 'إضافة',
+  '编辑': 'تحرير', '导入': 'استيراد', '刷新': 'تحديث',
+  '推荐': 'موصى به', '更多': 'المزيد', '启用': 'تشغيل', '禁用': 'تعطيل',
+  '已保存': 'تم الحفظ', '已删除': 'تم الحذف', '已启用': 'مفعّل', '已禁用': 'معطّل',
+  '开始安装': 'تثبيت الآن', '安装': 'تثبيت', '更新': 'تحديث',
+  '一键安装': 'تثبيت بنقرة', '立即更新': 'تحديث الآن',
+  '源测速': 'اختبار السرعة', '打开数据目录': 'فتح البيانات',
+  '添加目录': 'إضافة مجلد', '已注册的目录': 'المجلدات المسجلة',
+  '没有选中的实例': 'لا نسخة محددة', '先在左侧选择一个实例。': 'اختر نسخة من اليسار.',
+  '还没有配置 Java': 'لم تُضف جافا بعد', '正在检测…': 'جارٍ الفحص…',
+  '移除': 'إزالة', '排序与显示': 'الترتيب والعرض',
 };
 
 const TABLES = {

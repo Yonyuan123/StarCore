@@ -19,7 +19,8 @@ import {
   selectControl as customSelect,
 } from '../scripts/ui.js';
 import { ACCENTS, BACKGROUNDS, MOTIONS, PERFS } from '../scripts/theme.js';
-import { LOCALES } from '../scripts/i18n.js';
+import { LOCALES, t } from '../scripts/i18n.js';
+import { repaint } from '../scripts/router.js';
 
 const SECTION = 'settings';
 
@@ -65,7 +66,7 @@ function setRow(label, desc, control) {
 /** 一个设置区块。 */
 function setSection(title, iconName, desc, ...rows) {
   return h('div', { class: 'set-section' },
-    h('div', { class: 'set-section__title' }, icon(iconName, 'md'), h('span', { text: title })),
+    h('div', { class: 'set-section__title' }, icon(iconName, 'md'), h('span', { text: t(title) })),
     desc ? h('div', { class: 'set-section__desc', text: desc }) : null,
     ...rows,
   );
@@ -428,11 +429,12 @@ function mountGeneral(el) {
 
       setSection('语言与区域', 'languages', null,
         setRow('界面语言', '覆盖侧栏、分区标题等核心界面；其余文案将随版本逐步接入。阿拉伯语为从右到左布局。',
-          selectControl(s.language ?? 'zh-CN', LOCALES.map((l) => ({ value: l.value, label: l.native })), (v) => {
+          selectControl(s.language ?? 'zh-CN', LOCALES.map((l) => ({ value: l.value, label: l.native })), async (v) => {
             save({ language: v });
-            // t() 在渲染时求值，切换语言需要整体重绘。state 会在启动时从内核重新拉取，
-            // reload 是最可靠的方式（PCL / HMCL 的语言切换同样是重启级生效）。
-            setTimeout(() => location.reload(), 600);
+            // 原地全量重绘（rail + 当前页），刻意不用 location.reload ——
+            // reload 会把内存状态打回默认，用户看到的就是"闪退回主界面"。
+            await repaint();
+            toast({ title: t('界面语言已切换'), kind: 'success', timeout: 3000 });
           })),
         setRow('游戏语言', '安装 / 启动时自动把游戏调成所选语言，不用进游戏再翻设置。',
           selectControl(s.gameLanguage ?? 'auto', [

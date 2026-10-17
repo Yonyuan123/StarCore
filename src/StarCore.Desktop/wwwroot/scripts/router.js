@@ -142,6 +142,19 @@ export function current() {
   return { key: currentKey, section: currentSection };
 }
 
+/**
+ * 全量重绘当前界面（语言切换等全局变化用）。
+ * 刻意不用 location.reload —— 那会把内存状态全部打回默认，
+ * 用户看到的就是"闪退回主界面"。
+ */
+export async function repaint() {
+  const rail = document.getElementById('rail');
+  if (rail) delete rail.dataset.active;
+  renderRail(currentSection, { force: true });
+  const sub = getState().route?.sub ?? null;
+  await go(currentSection, sub, { force: true });
+}
+
 /* ===========================================================================
    二级面板
    ========================================================================== */
@@ -164,16 +177,18 @@ async function renderPanel(section, sec) {
    图标栏与面包屑
    ========================================================================== */
 
-export function renderRail(activeId) {
+export function renderRail(activeId, { force = false } = {}) {
   const rail = document.getElementById('rail');
-  if (!rail || rail.dataset.active === activeId) return;
+  if (!rail) return;
+  if (!force && rail.dataset.active === activeId) return;
   rail.dataset.active = activeId;
 
   const existing = rail.querySelectorAll('.rail-btn[data-section]');
-  if (existing.length === RAIL.length) {
+  if (!force && existing.length === RAIL.length) {
     for (const b of existing) b.setAttribute('aria-selected', b.dataset.section === activeId ? 'true' : 'false');
     return;
   }
+  for (const b of existing) b.remove(); // force：旧的先拆掉（提示文案已随语言变化）
 
   // 首次渲染：前缀插入导航按钮，保留底部区（由 app.js 追加，带 data-tail）
   const tail = rail.querySelector('[data-tail]');

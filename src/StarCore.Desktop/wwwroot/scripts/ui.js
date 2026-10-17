@@ -12,6 +12,7 @@
  */
 
 import { maskUrl, ICONS } from './icons.js';
+import { t } from './i18n.js';
 
 /* ===========================================================================
    DOM 基础
@@ -174,6 +175,7 @@ export function setIcon(el, name) {
    ========================================================================== */
 
 export function button(label, opts = {}) {
+  label = t(label);
   const { variant = 'secondary', size, icon: ic, iconAfter, onClick, title, disabled, block, id, className } = opts;
   const cls = ['btn', `btn--${variant}`];
   if (size) cls.push(`btn--${size}`);
@@ -198,6 +200,7 @@ export function button(label, opts = {}) {
 
 /** 单纯的图标按钮。 */
 export function iconButton(ic, opts = {}) {
+  if (opts?.tip) opts.tip = t(opts.tip);
   const { variant = 'ghost', size = 'md', tip, onClick, id, className, label } = opts;
   const btn = h('button', {
     class: ['btn', `btn--${variant}`, 'btn--icon', `btn--${size}`, className],
@@ -292,6 +295,8 @@ export const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 const TOAST_ICONS = { success: 'circle-check', danger: 'circle-x', warning: 'alert-triangle', accent: 'info', neutral: 'info' };
 
 export function toast({ title, desc, kind = 'neutral', timeout = 4200, action } = {}) {
+  title = title == null ? title : t(title);
+  desc = desc == null ? desc : t(desc);
   const host = $('#toasts');
   if (!host) return () => {};
 
@@ -334,6 +339,7 @@ let _dialogStack = [];
  * 返回一个 Promise，resolve 为被点击按钮的 value（或 null）。
  */
 export function dialog({ title, icon: ic, body, actions = [], width = 520, dismissible = true, onClose } = {}) {
+  title = t(title);
   const scrim = $('#scrim');
   if (!scrim) return Promise.resolve(null);
 
@@ -411,6 +417,7 @@ export function dialog({ title, icon: ic, body, actions = [], width = 520, dismi
 }
 
 export function confirm({ title = '确认操作', message, confirmLabel = '确认', cancelLabel = '取消', danger = false } = {}) {
+  title = t(title); message = t(message); confirmLabel = t(confirmLabel); cancelLabel = t(cancelLabel);
   return dialog({
     title,
     icon: danger ? 'alert-triangle' : 'help-circle',
@@ -634,6 +641,8 @@ export function initTooltips() {
 
 /** 空状态。 */
 export function emptyState({ icon: ic = 'box', title, desc, actions = [] } = {}) {
+  title = title == null ? title : t(title);
+  desc = desc == null ? desc : t(desc);
   return h('div', { class: 'empty' },
     h('div', { class: 'empty__art' }, icon(ic, 'xl')),
     title ? h('div', { class: 'empty__title', text: title }) : null,
@@ -694,6 +703,7 @@ export function progress(value, { indeterminate = false, size } = {}) {
 }
 
 export function switchEl(checked, onChange, { disabled, id, label } = {}) {
+  label = label == null ? label : t(label);
   const el = h('button', {
     class: 'switch', type: 'button', role: 'switch', id,
     'aria-checked': checked ? 'true' : 'false',

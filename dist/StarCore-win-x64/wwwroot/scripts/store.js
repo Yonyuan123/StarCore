@@ -149,6 +149,11 @@ export async function loadAll() {
     versionsLoadedAt: versions?.cachedAt ?? null,
     versionsStale: versions?.stale ?? true,
   });
+
+  // 内核设置灌回后必须重设语言 —— initLocale 只在模块加载时跑过一次，
+  // 那时 loadAll 还没执行，current 永远是默认 'zh-CN'，
+  // 这就是"切换语言永远变回中文"的根因。
+  initLocale(state.settings.language);
 }
 
 export async function patchSettings(patch) {
