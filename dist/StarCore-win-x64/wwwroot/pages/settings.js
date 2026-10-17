@@ -250,6 +250,48 @@ function mountGeneral(el) {
           proxyInput),
       ),
 
+      setSection('游戏目录', 'folder-open', '注册多个游戏目录后，个别实例可以选择"共用"其中一个（相当于关闭该实例的版本隔离）。默认隔离最安全。',
+        (() => {
+          function gameDirsRow() {
+            const listBox = h('div', { class: 'col', style: { gap: 'var(--sp-2)', marginTop: 'var(--sp-3)' } });
+            const load = async () => {
+              const r = await invoke('gamedir.list').catch(() => ({ dirs: [] }));
+              const dirs = r?.dirs ?? [];
+              listBox.replaceChildren(
+                ...(dirs.length
+                  ? dirs.map((d) => h('div', {
+                      class: 'row-between',
+                      style: { gap: 'var(--sp-3)', padding: 'var(--sp-2) var(--sp-3)', background: 'var(--hover)', borderRadius: 'var(--r-md)' },
+                    },
+                      h('span', { class: 'mono truncate', style: { fontSize: 'var(--fs-xs)', flex: '1' }, text: d }),
+                      iconButton('trash-2', { size: 'sm', tip: '移除', onClick: async () => {
+                        await invoke('gamedir.remove', { path: d });
+                        toast({ title: '已移除', kind: 'neutral', timeout: 3000 });
+                        await load();
+                      } }),
+                    ))
+                  : [h('div', { class: 'dim', style: { fontSize: 'var(--fs-xs)' }, text: '还没有注册任何游戏目录' })]),
+              );
+            };
+            load();
+            return h('div', { class: 'set-row', style: { alignItems: 'flex-start' } },
+              h('div', { class: 'grow' },
+                h('div', { class: 'set-row__label', text: '已注册的目录' }),
+                listBox,
+              ),
+              h('div', { class: 'set-row__control' },
+                button('添加目录', { variant: 'secondary', size: 'sm', icon: 'plus', onClick: async () => {
+                  const r = await invoke('system.pickFolder', { title: '选择游戏目录' }).catch(() => null);
+                  if (!r?.path) return;
+                  const res = await invoke('gamedir.add', { path: r.path });
+                  toast({ title: res?.message ?? '已添加', kind: 'success', timeout: 4000 });
+                  await load();
+                } })),
+            );
+          }
+          return gameDirsRow();
+        })()),
+
       setSection('账户', 'key', '微软登录由启动器内置的应用身份完成，用户无需任何配置。用户名与密码只在微软官方页面上输入，启动器全程接触不到你的凭据。',
         setRow('应用身份', '已内置。可随时点右侧按钮验证与微软之间的链路是否正常。',
           button('自检登录链路', {

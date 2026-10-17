@@ -273,6 +273,29 @@ public static class InstanceService
         }
     }
 
+    /// <summary>
+    /// 设置实例的自定义封面：把图片复制进数据目录 covers/ 下（以实例 id 命名），
+    /// 记录相对路径。返回可直接给前端的 DataHost URL。
+    /// </summary>
+    public static string SetCustomIcon(long id, string sourcePath)
+    {
+        var t = _store.Instances.FirstOrDefault(i => i.Id == id)
+                ?? throw new InvalidOperationException("实例不存在。");
+
+        var ext = System.IO.Path.GetExtension(sourcePath).ToLowerInvariant();
+        if (ext is not ".png" and not ".jpg" and not ".jpeg" and not ".webp" and not ".gif")
+            throw new InvalidOperationException("仅支持 PNG / JPG / WEBP / GIF 图片。");
+
+        var dir = System.IO.Path.Combine(StarCorePaths.DataRoot, "covers");
+        System.IO.Directory.CreateDirectory(dir);
+        var dest = System.IO.Path.Combine(dir, $"{id}{ext}");
+        System.IO.File.Copy(sourcePath, dest, true);
+
+        t.CustomCover = $"covers/{id}{ext}";
+        Persist();
+        return App.WebAssets.Data(t.CustomCover);
+    }
+
     public static InstanceInfo? Update(long id, IDictionary<string, object?> patch)
     {
         lock (Gate)
@@ -297,6 +320,9 @@ public static class InstanceService
                     case "gameArgs": t.GameArgs = v?.ToString() ?? ""; break;
                     case "preLaunchCommand": t.PreLaunchCommand = string.IsNullOrWhiteSpace(v?.ToString()) ? null : v!.ToString(); break;
                     case "postLaunchCommand": t.PostLaunchCommand = string.IsNullOrWhiteSpace(v?.ToString()) ? null : v!.ToString(); break;
+                    case "gameDirMode": t.GameDirMode = v?.ToString() == "shared" ? "shared" : "isolated"; break;
+                    case "sharedGameDir": t.SharedGameDir = string.IsNullOrWhiteSpace(v?.ToString()) ? null : v!.ToString(); break;
+                    case "hidden": t.Hidden = ToBool(v, t.Hidden); break;
                     default: Logger.Debug($"[instance] 忽略未知字段 {k}"); break;
                 }
             }
@@ -404,7 +430,10 @@ public static class InstanceService
             // 图标：装了加载器就显示加载器方块（那才是这个实例的身份），否则显示版本类型的方块
             info.LoaderIcon = Icons.ForLoader(info.Loader);
             var vt = info.VersionId is null ? null : VersionManifestService.Find(info.VersionId)?.Type;
-            info.Cover = Icons.ForInstance(info.VersionId, vt, info.Loader);
+            // 用户自定义封面优先；它存放在数据目录 covers/ 下，转成 DataHost URL 给前端
+            info.Cover = string.IsNullOrWhiteSpace(info.CustomCover)
+                ? Icons.ForInstance(info.VersionId, vt, info.Loader)
+                : App.WebAssets.Data(info.CustomCover);
         }
         catch (Exception ex)
         {

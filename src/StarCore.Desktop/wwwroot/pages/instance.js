@@ -35,6 +35,10 @@ function renderPanel(el, hh, ctx) {
   const foot = h('div', { class: 'panel__foot' });
   fill(el, head, body, foot);
 
+  /** 列表排序与隐藏显示偏好（第 3 批：对标 PCL 的实例管理） */
+  let sortBy = 'default';
+  let showHidden = false;
+
   const paintHead = () => {
     const n = getState().instances.length;
     fill(head,
@@ -43,6 +47,18 @@ function renderPanel(el, hh, ctx) {
         icon('search', 'sm'),
         h('input', { class: 'input', placeholder: '筛选实例…', onInput: (e) => paintList(e.target.value.trim()) }),
       ),
+      iconButton('arrow-up-down', {
+        size: 'sm', tip: '排序与显示',
+        onClick: (e) => menu(e.currentTarget, [
+          { label: '默认排序', icon: sortBy === 'default' ? 'check' : null, onClick: () => { sortBy = 'default'; paintList(); } },
+          { label: '按名称', icon: sortBy === 'name' ? 'check' : null, onClick: () => { sortBy = 'name'; paintList(); } },
+          { label: '按最近游玩', icon: sortBy === 'played' ? 'check' : null, onClick: () => { sortBy = 'played'; paintList(); } },
+          { label: '按大小', icon: sortBy === 'size' ? 'check' : null, onClick: () => { sortBy = 'size'; paintList(); } },
+          { separator: true },
+          { label: showHidden ? '不显示已隐藏的实例' : '显示已隐藏的实例', icon: 'eye-off',
+            onClick: () => { showHidden = !showHidden; paintList(); } },
+        ]),
+      }),
     );
   };
 
@@ -50,7 +66,11 @@ function renderPanel(el, hh, ctx) {
   const paintList = (q) => {
     filter = q ?? filter;
     const list = getState().instances;
-    const shown = filter ? list.filter((i) => (i.name ?? '').toLowerCase().includes(filter.toLowerCase())) : list;
+    const base = showHidden ? list : list.filter((i) => !i.hidden);
+    let shown = filter ? base.filter((i) => (i.name ?? '').toLowerCase().includes(filter.toLowerCase())) : base;
+    if (sortBy === 'name') shown = [...shown].sort((a, b) => (a.name ?? '').localeCompare(b.name ?? ''));
+    else if (sortBy === 'played') shown = [...shown].sort((a, b) => String(b.lastPlayedAt ?? '').localeCompare(String(a.lastPlayedAt ?? '')));
+    else if (sortBy === 'size') shown = [...shown].sort((a, b) => (b.sizeBytes ?? 0) - (a.sizeBytes ?? 0));
     const active = getState().activeInstanceId;
 
     if (!list.length) {
@@ -571,6 +591,14 @@ function mountList(el) {
       { separator: true },
       { label: '导出为整合包', icon: 'upload', onClick: () => go(SECTION, 'export') },
       { separator: true },
+      { label: '自定义图标', icon: 'image', onClick: () => setCustomIcon(inst) },
+      { separator: true },
+      { label: inst.hidden ? '取消隐藏' : '隐藏实例', icon: 'eye-off',
+        onClick: async () => {
+          await invoke('instance.update', { id: inst.id, patch: { hidden: !inst.hidden } }).catch(() => {});
+          toast({ title: inst.hidden ? '已取消隐藏' : '已隐藏（可在列表排序菜单里找回）', kind: 'neutral', timeout: 6000 });
+          await refresh();
+        } },
       { label: '删除实例', icon: 'trash-2', danger: true, onClick: () => remove(inst) },
     ]);
   }
@@ -604,6 +632,21 @@ function mountList(el) {
       await refresh();
     } catch (e) {
       toast({ title: '复制失败', desc: e?.message ?? String(e), kind: 'danger' });
+    }
+  }
+
+  async function setCustomIcon(inst) {
+    const r = await invoke('system.pickFile', {
+      title: '选择封面图片',
+      filter: '图片 (png;jpg;jpeg;webp;gif)|png;jpg;jpeg;webp;gif',
+    }).catch(() => null);
+    if (!r?.path) return;
+    try {
+      await invoke('instance.setIcon', { id: inst.id, path: r.path });
+      toast({ title: '封面已更新', kind: 'success' });
+      await refresh();
+    } catch (e) {
+      toast({ title: '设置失败', desc: e?.message ?? String(e), kind: 'danger', timeout: 8000 });
     }
   }
 
@@ -715,6 +758,46 @@ function mountOverview(el) {
     const inst = getActiveInstance();
     if (!inst) { fill(scroll, emptyState({ icon: 'boxes', title: '没有选中的实例', desc: '先在左侧选择一个实例。' })); return; }
 
+    const dirs = getState().settings?.gameDirs ?? [];
+
+    /**
+     * 游戏目录选择器：隔离（默认）或共用某个已注册目录。
+     * 切换只影响"游戏运行目录"（mods/存档/配置写在哪），
+     * 版本与库文件仍在实例自己的目录里 —— 这也是 PCL 的语义。
+     */
+    function gameDirSel(inst, dirList) {
+      const shared = (inst.gameDirMode ?? 'isolated') === 'shared';
+      const sel = customSelect({
+        value: shared ? (inst.sharedGameDir ?? '') : 'isolated',
+        ariaLabel: '游戏目录模式',
+        placeholder: '隔离（推荐）',
+        options: [
+          { value: 'isolated', label: '隔离（推荐）' },
+          ...(dirList.length
+            ? dirList.map((d) => ({
+                value: d,
+                label: `共用：${d.split(/[\\/]/).pop() || d}`,
+                hint: d,
+              }))
+            : [{ value: 'shared', label: '共用（先到设置里注册游戏目录）', disabled: true }]),
+        ],
+        onChange: async (v) => {
+          const shared2 = v !== 'isolated';
+          await invoke('instance.update', { id: inst.id, patch: {
+            gameDirMode: shared2 ? 'shared' : 'isolated',
+            sharedGameDir: shared2 ? v : null,
+          } }).catch(() => {});
+          toast({
+            title: shared2 ? '已切换为共用目录' : '已切换为隔离',
+            desc: shared2 ? `游戏数据写入 ${v}` : 'mods / 存档 / 配置回到实例自己的目录',
+            kind: 'accent', timeout: 7000,
+          });
+          paint();
+        },
+      });
+      return sel;
+    }
+
     const memSlider = h('input', {
       class: 'slider', type: 'range', min: '512', max: String(Math.max(4096, getState().app?.totalMemoryMb ?? 8192)), step: '256',
       value: String(inst.memoryMb ?? 4096),
@@ -752,6 +835,16 @@ function mountOverview(el) {
             button('更改', { variant: 'ghost', size: 'sm', onClick: () => go('download') }))),
         h('div', { class: 'set-row' }, h('div', { class: 'grow' }, h('div', { class: 'set-row__label', text: '模组加载器' })),
           h('div', { class: 'set-row__control' }, chip(loaderLabel(inst.loader ?? 'vanilla'), { variant: inst.loader && inst.loader !== 'vanilla' ? 'accent' : undefined }))),
+        h('div', { class: 'set-row' }, h('div', { class: 'grow' }, h('div', { class: 'set-row__label', text: '模组加载器' })),
+          h('div', { class: 'set-row__control' }, chip(loaderLabel(inst.loader ?? 'vanilla'), { variant: inst.loader && inst.loader !== 'vanilla' ? 'accent' : undefined }))),
+        h('div', { class: 'set-row' },
+          h('div', { class: 'grow' },
+            h('div', { class: 'set-row__label' }, '游戏目录'),
+            h('div', { class: 'set-row__desc',
+              text: (inst.gameDirMode ?? 'isolated') === 'shared'
+                ? '与其他实例共用一个目录（版本隔离已关闭）。切回隔离即可恢复独立。'
+                : 'mods、存档、配置都在这个实例自己的目录里，与其他实例互不影响。' })),
+          h('div', { class: 'set-row__control' }, gameDirSel(inst, dirs))),
         h('div', { class: 'set-row' }, h('div', { class: 'grow' }, h('div', { class: 'set-row__label', text: '磁盘占用' })),
           h('div', { class: 'set-row__control' }, h('span', { class: 'mono', style: { fontSize: 'var(--fs-sm)' }, text: fmtBytes(inst.sizeBytes ?? 0) }))),
         h('div', { class: 'set-row' }, h('div', { class: 'grow' }, h('div', { class: 'set-row__label', text: '上次游玩' })),

@@ -142,6 +142,8 @@ export function versionIcon(version, size = 'sm') {
 export function blockCover(rel) {
   if (!rel) return null;
   const raw = String(rel);
+  // 自定义封面是 DataHost 虚拟主机的完整 URL（内核 WebAssets.Data 生成），直接透传
+  if (/^https?:\/\//i.test(raw)) return raw;
   const path = raw.includes('/') ? raw : `blocks/${raw.replace(/\.svg$/i, '.png')}`;
   return `assets/img/${path}`;
 }

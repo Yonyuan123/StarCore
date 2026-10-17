@@ -230,11 +230,17 @@ public static class LaunchService
         var plan = await BuildPlanAsync(inst, account, ct);
 
         // 启动前命令
-        await RunHookAsync(inst.PreLaunchCommand, inst.Path, ct);
+        // 游戏运行目录：默认隔离在实例目录里（mods/存档/配置全套独立）；
+        // 用户在实例概览里切换为"共用"后，改用指定的共用目录。
+        var gameDir = inst.GameDirMode == "shared" && !string.IsNullOrWhiteSpace(inst.SharedGameDir)
+            ? inst.SharedGameDir!
+            : inst.Path;
+
+        await RunHookAsync(inst.PreLaunchCommand, gameDir, ct);
 
         var psi = new ProcessStartInfo(plan.Java.Path)
         {
-            WorkingDirectory = inst.Path,
+            WorkingDirectory = gameDir,
             UseShellExecute = false,
             CreateNoWindow = true,
             RedirectStandardOutput = true,

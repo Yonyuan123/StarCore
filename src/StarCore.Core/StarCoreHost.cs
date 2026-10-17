@@ -182,6 +182,11 @@ public static class StarCoreHost
             "source.info" => new { name = DownloadSource.CurrentName, kind = DownloadSource.Kind.ToString() },
             "source.ping" => await DownloadSource.PingAllAsync(ct),
 
+            /* ---- 游戏目录（HMCL 的多目录管理）---- */
+            "gamedir.list" => new { dirs = SettingsService.Current.GameDirs },
+            "gamedir.add" => GamedirAdd(Str(p, "path") ?? ""),
+            "gamedir.remove" => GamedirRemove(Str(p, "path") ?? ""),
+
             /* ---- 实例 ---- */
             "instance.list" => new
             {
@@ -192,6 +197,7 @@ public static class StarCoreHost
             "instance.remove" => InstanceService.Remove(Long(p, "id") ?? 0, Bool(p, "deleteFiles") ?? false)
                 ? OpResult.Success("已删除") : OpResult.Fail("删除失败。"),
             "instance.update" => InstanceService.Update(Long(p, "id") ?? 0, ToDict(p)),
+            "instance.setIcon" => new { url = InstanceService.SetCustomIcon(Long(p, "id") ?? 0, Str(p, "path") ?? "") },
             "instance.setActive" => InstanceService.SetActive(Long(p, "id") ?? 0)
                 ? OpResult.Success() : OpResult.Fail("实例不存在。"),
             "instance.duplicate" => InstanceService.Duplicate(Long(p, "id") ?? 0, Str(p, "name")),
@@ -607,6 +613,26 @@ public static class StarCoreHost
     /* ==================================================================
        实例与安装
        ================================================================== */
+
+    private static object GamedirAdd(string path)
+    {
+        path = path.Trim().TrimEnd('\\', '/');
+        if (path.Length == 0 || !Directory.Exists(path)) return OpResult.Fail("目录不存在。");
+        var dirs = SettingsService.Current.GameDirs;
+        if (!dirs.Contains(path, StringComparer.OrdinalIgnoreCase)) dirs.Add(path);
+        SettingsService.Save();
+        Emit("settings.changed", SettingsService.Current);
+        return OpResult.Success($"已添加 {path}");
+    }
+
+    private static object GamedirRemove(string path)
+    {
+        var dirs = SettingsService.Current.GameDirs;
+        dirs.RemoveAll(d => string.Equals(d, path.Trim(), StringComparison.OrdinalIgnoreCase));
+        SettingsService.Save();
+        Emit("settings.changed", SettingsService.Current);
+        return OpResult.Success("已移除");
+    }
 
     private static object CreateInstance(JsonElement p)
     {

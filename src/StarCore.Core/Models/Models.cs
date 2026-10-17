@@ -71,6 +71,10 @@ public sealed class Settings
 
     // 下载
     public string DownloadSource { get; set; } = "official"; // official | mirror | custom
+
+    /// <summary>注册的游戏目录列表（HMCL 的多目录管理）。
+    /// 实例的 GameDirMode = shared 时从中选一个作为运行目录。</summary>
+    public List<string> GameDirs { get; set; } = new();
     public string CustomDownloadSource { get; set; } = "";
     public int MaxThreads { get; set; } = 32;
 
@@ -172,10 +176,24 @@ public sealed class InstanceInfo
     public bool Installed { get; set; }
 
     // —— 展示用图标（相对 wwwroot/assets/img/ 的路径，由 App.Icons 产出）——
-    /// <summary>实例封面：装了加载器就是加载器的方块，否则是版本类型的方块。</summary>
+    /// <summary>实例封面：装了加载器就是加载器的方块，否则是版本类型的方块。
+    /// 用户设置了自定义封面（CustomCover）时优先显示自定义。</summary>
     public string? Cover { get; set; }
     /// <summary>加载器图标。前端据此在角标与列表里显示。</summary>
     public string? LoaderIcon { get; set; }
+
+    // —— 游戏目录（PCL 的"版本隔离"开关）——
+    /// <summary>isolated = 实例自己的目录（默认，mods/存档完全独立）；
+    /// shared = 与其他实例共用一个目录（SharedGameDir）。</summary>
+    public string GameDirMode { get; set; } = "isolated";
+    /// <summary>共用模式下实际使用的工作目录。来自设置里注册的游戏目录列表。</summary>
+    public string? SharedGameDir { get; set; }
+
+    /// <summary>用户自定义封面，相对数据目录（如 covers/9.png）。优先于方块图标。</summary>
+    public string? CustomCover { get; set; }
+
+    /// <summary>隐藏的实例不出现在列表与切换菜单里（可在"显示已隐藏"中找回）。</summary>
+    public bool Hidden { get; set; }
 
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.Now;
 }
