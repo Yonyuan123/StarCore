@@ -73,6 +73,19 @@ public sealed class Settings
     /// <summary>允许同一实例同时开多个游戏进程（PCL/HMCL 都有）。默认关：两个进程写同一个存档会互相踩。</summary>
     public bool AllowMultiInstance { get; set; }
 
+    // —— 游戏语言（第 5 批附加）——
+    /// <summary>
+    /// 安装 / 启动时自动把游戏语言调成该值（MC 语言代码，如 zh_cn）。
+    /// "auto" = 跟随界面语言。玩家不用再进游戏设置里翻语言列表。
+    /// </summary>
+    public string GameLanguage { get; set; } = "auto";
+    /// <summary>关闭后不再自动改写 options.txt 的 lang，游戏保持自己的语言。</summary>
+    public bool AutoGameLanguage { get; set; } = true;
+
+    // —— 启动前自动备份（第 5 批）——
+    /// <summary>启动前备份有改动的存档（PCL 的招牌安全感）。保留最近 5 份。</summary>
+    public bool AutoBackupWorlds { get; set; } = true;
+
     public string DownloadSource { get; set; } = "official"; // official | mirror | custom
 
     /// <summary>注册的游戏目录列表（HMCL 的多目录管理）。

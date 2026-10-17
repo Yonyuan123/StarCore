@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using StarCore.Core.App;
+using StarCore.Core.Platform;
 using StarCore.Core.Models;
 using StarCore.Core.Services;
 
@@ -198,6 +199,14 @@ public static class StarCoreHost
                 ? OpResult.Success("已删除") : OpResult.Fail("删除失败。"),
             "instance.update" => InstanceService.Update(Long(p, "id") ?? 0, ToDict(p)),
             "instance.setIcon" => new { url = InstanceService.SetCustomIcon(Long(p, "id") ?? 0, Str(p, "path") ?? "") },
+            "world.list" => new { worlds = WorldService.List(InstancePathOf(p)) },
+            "world.backup" => WorldBackup(p, ct),
+            "world.backups" => new { backups = WorldService.ListBackups(InstancePathOf(p), Str(p, "world") ?? "") },
+            "world.restore" => new { message = WorldService.Restore(InstancePathOf(p), Str(p, "world") ?? "", Str(p, "file") ?? "") },
+            "world.deleteBackup" => DeleteWorldBackup(Str(p, "file") ?? ""),
+            "world.delete" => WorldDelete(p),
+            "world.rename" => new { name = WorldService.Rename(InstancePathOf(p), Str(p, "world") ?? "", Str(p, "name") ?? "") },
+            "world.reveal" => RevealWorld(p),
             "instance.repair" => RepairInstance(p),
             "version.json.get" => VersionJsonGet(Long(p, "instanceId") ?? 0),
             "version.json.save" => await VersionJsonSaveAsync(Long(p, "instanceId") ?? 0, Str(p, "content") ?? "", ct),
@@ -1090,6 +1099,48 @@ public static class StarCoreHost
     /// 补全缺失文件（PCL 的"补全文件"）：按实例现有的 版本 / 加载器 / 加载器版本
     /// 重跑一次安装。已下好且大小一致的文件会被跳过，所以只补缺的部分，不会重下。
     /// </summary>
+    private static object DeleteWorldBackup(string file)
+    {
+        if (string.IsNullOrWhiteSpace(file)) return OpResult.Fail("未指定备份文件。");
+        WorldService.DeleteBackup(file);
+        return OpResult.Success("已删除备份");
+    }
+
+    private static string InstancePathOf(JsonElement p)
+    {
+        var inst = InstanceService.Get(Long(p, "instanceId") ?? 0)
+                   ?? throw new InvalidOperationException("实例不存在。");
+        // 共用游戏目录的实例，存档在共用目录里 —— 与启动时的工作目录一致
+        return inst.GameDirMode == "shared" && !string.IsNullOrWhiteSpace(inst.SharedGameDir)
+            ? inst.SharedGameDir!
+            : inst.Path;
+    }
+
+    private static object WorldBackup(JsonElement p, CancellationToken ct)
+    {
+        var path = InstancePathOf(p);
+        var file = WorldService.Backup(path, Str(p, "world") ?? "", ct);
+        InstanceService.InvalidateStats(path);
+        return new { file, name = Path.GetFileName(file) };
+    }
+
+    private static object WorldDelete(JsonElement p)
+    {
+        var path = InstancePathOf(p);
+        WorldService.Delete(path, Str(p, "world") ?? "");
+        InstanceService.InvalidateStats(path);
+        return OpResult.Success("已删除存档");
+    }
+
+    private static object RevealWorld(JsonElement p)
+    {
+        var path = InstancePathOf(p);
+        var dir = Path.Combine(path, "saves", Str(p, "world") ?? "");
+        if (!Directory.Exists(dir)) return OpResult.Fail("存档目录不存在。");
+        PlatformServices.Current.RevealInFileManager(dir);
+        return OpResult.Success();
+    }
+
     private static object RepairInstance(JsonElement p)
     {
         var id = Long(p, "instanceId") ?? 0;

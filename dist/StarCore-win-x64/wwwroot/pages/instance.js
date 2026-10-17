@@ -1099,11 +1099,70 @@ function mountContent(kind) {
           iconButton('more-vertical', { size: 'sm', tip: '更多', onClick: (e) => menu(e.currentTarget, [
             { label: it.disabled ? '启用' : '禁用', icon: it.disabled ? 'check' : 'x', onClick: () => invoke('content.toggle', { instanceId: inst.id, kind: meta.kind, path: it.path, enabled: it.disabled }).then(() => paint()) },
             { label: '在文件夹中显示', icon: 'folder-open', onClick: () => invoke('system.revealPath', { path: it.path }).catch(() => {}) },
+            ...(meta.kind === 'world' ? worldActions(inst, it) : []),
             { separator: true },
             { label: '删除', icon: 'trash-2', danger: true, onClick: () => confirm({ title: '删除确认', message: `确定删除「${it.name ?? it.fileName}」？文件将从磁盘移除。`, danger: true }).then((ok) => ok && invoke('content.remove', { instanceId: inst.id, kind: meta.kind, path: it.path }).then(paint)) },
           ]) }),
         ),
       );
+    }
+
+    /** 世界专属操作（第 5 批）：备份 / 从备份恢复。 */
+    function worldActions(inst, it) {
+      return [
+        { label: '备份存档', icon: 'file-archive', onClick: async () => {
+            try {
+              await invoke('world.backup', { instanceId: inst.id, world: it.fileName ?? it.path?.split(/[\\/]/).pop() });
+              toast({ title: '备份完成', desc: '存放在数据目录 backups/worlds 下', kind: 'success' });
+            } catch (e) { toast({ title: '备份失败', desc: e?.message ?? String(e), kind: 'danger', timeout: 8000 }); }
+          } },
+        { label: '从备份恢复', icon: 'history', onClick: () => restoreWorld(inst, it) },
+      ];
+    }
+
+    async function restoreWorld(inst, it) {
+      const world = it.fileName ?? it.path?.split(/[\\/]/).pop();
+      let r;
+      try { r = await invoke('world.backups', { instanceId: inst.id, world }); }
+      catch (e) { toast({ title: '读取备份列表失败', desc: String(e?.message ?? e), kind: 'danger' }); return; }
+      const backups = r?.backups ?? [];
+      if (!backups.length) {
+        toast({ title: '还没有这个存档的备份', desc: '先在菜单里点「备份存档」。', kind: 'warning', timeout: 8000 });
+        return;
+      }
+      const res = await dialog({
+        title: `恢复「${world}」`, icon: 'history', width: 640,
+        body: h('div', { class: 'col', style: { gap: 'var(--sp-4)' } },
+          h('div', { class: 'field__hint',
+            text: '恢复前会把当前存档自动改名保留（world.pre-restore-时间），确认无误后可手动删除。' }),
+          ...backups.map((b) => h('div', {
+            class: 'row-between',
+            style: { padding: 'var(--sp-4) var(--sp-5)', background: 'var(--hover)', borderRadius: 'var(--r-md)' },
+          },
+            h('div', {},
+              h('div', { style: { fontSize: 'var(--fs-sm)' }, text: b.name }),
+              h('div', { class: 'dim', style: { fontSize: 'var(--fs-xs)' }, text: `${fmtBytes(b.sizeBytes ?? 0)}` })),
+            button('恢复', { variant: 'secondary', size: 'sm', icon: 'history', onClick: async (e) => {
+              e.stopPropagation();
+              try {
+                const rr = await invoke('world.restore', { instanceId: inst.id, world, file: b.file });
+                toast({ title: '已恢复', desc: rr?.message ?? '', kind: 'success', timeout: 9000 });
+              } catch (err) {
+                toast({ title: '恢复失败', desc: err?.message ?? String(err), kind: 'danger', timeout: 0 });
+              }
+            } }),
+          )),
+        ),
+        actions: [{ label: '关闭', variant: 'ghost', value: null }],
+      });
+      if (!res) return;
+      try {
+        const rr = await invoke('world.restore', { instanceId: inst.id, world, file: res });
+        toast({ title: '已恢复', desc: rr?.message ?? '', kind: 'success', timeout: 9000 });
+        paint();
+      } catch (e) {
+        toast({ title: '恢复失败', desc: e?.message ?? String(e), kind: 'danger', timeout: 0 });
+      }
     }
 
     async function importLocal() {

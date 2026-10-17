@@ -13,6 +13,7 @@
 import { fill, icon, h } from './ui.js';
 import { setState, getState } from './store.js';
 import { RAIL, sectionTitle } from './nav.js';
+import { t } from './i18n.js';
 
 const sections = new Map(); // sectionId -> { panel, onEnter }
 const pages = new Map();    // pageKey   -> { def, el, mounted }
@@ -181,8 +182,8 @@ export function renderRail(activeId) {
       class: 'rail-btn',
       type: 'button',
       'data-section': item.id,
-      'data-tip': `${item.label} · ${item.hint}`,
-      'aria-label': item.label,
+      'data-tip': `${t(item.label)} · ${t(item.hint)}`,
+      'aria-label': t(item.label),
       'aria-selected': item.id === activeId ? 'true' : 'false',
       onClick: () => go(item.id),
     }, icon(item.icon, 'lg'));

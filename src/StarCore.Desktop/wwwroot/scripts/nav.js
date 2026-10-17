@@ -47,8 +47,10 @@ export const INSTANCE_TABS = [
   { id: 'advanced',      label: '高级',    icon: 'sliders-horizontal' },
 ];
 
+import { t } from './i18n.js';
+
 export function sectionTitle(id) {
-  return SECTIONS[id]?.title ?? 'StarCore';
+  return t(SECTIONS[id]?.title) ?? 'StarCore Launcher';
 }
 
 export function sectionIcon(id) {

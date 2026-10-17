@@ -8,6 +8,7 @@
  */
 
 import { invoke } from './bridge.js';
+import { initLocale } from './i18n.js';
 
 const state = {
   /** 内核与运行环境信息 */
@@ -192,3 +193,6 @@ export function removeTask(id) {
 export function getTask(id) {
   return state.tasks.find((t) => t.id === id) ?? null;
 }
+
+// 语言初始化（i18n 的 t() 与文档方向）
+initLocale(state.settings.language);

@@ -19,6 +19,7 @@ import {
   selectControl as customSelect,
 } from '../scripts/ui.js';
 import { ACCENTS, BACKGROUNDS, MOTIONS, PERFS } from '../scripts/theme.js';
+import { LOCALES } from '../scripts/i18n.js';
 
 const SECTION = 'settings';
 
@@ -426,11 +427,24 @@ function mountGeneral(el) {
       ),
 
       setSection('语言与区域', 'languages', null,
-        setRow('界面语言', '切换界面文字语言。',
-          selectControl(s.language ?? 'zh-CN', [
-            { value: 'zh-CN', label: '简体中文' },
-            { value: 'en-US', label: 'English' },
-          ], (v) => save({ language: v }))),
+        setRow('界面语言', '覆盖侧栏、分区标题等核心界面；其余文案将随版本逐步接入。阿拉伯语为从右到左布局。',
+          selectControl(s.language ?? 'zh-CN', LOCALES.map((l) => ({ value: l.value, label: l.native })), (v) => {
+            save({ language: v });
+            // t() 在渲染时求值，切换语言需要整体重绘。state 会在启动时从内核重新拉取，
+            // reload 是最可靠的方式（PCL / HMCL 的语言切换同样是重启级生效）。
+            setTimeout(() => location.reload(), 600);
+          })),
+        setRow('游戏语言', '安装 / 启动时自动把游戏调成所选语言，不用进游戏再翻设置。',
+          selectControl(s.gameLanguage ?? 'auto', [
+            { value: 'auto', label: '跟随界面语言' },
+            ...LOCALES.map((l) => ({ value: l.mc, label: l.native })),
+          ], (v) => save({ gameLanguage: v }))),
+        setRow('自动应用游戏语言', '关闭后启动器不再改写游戏的语言设置（options.txt 的 lang）。',
+          switchEl(s.autoGameLanguage !== false, (v) => save({ autoGameLanguage: v }),
+            { label: '自动应用游戏语言' })),
+        setRow('启动前自动备份存档', '只备份自上次启动后有改动的存档，每个存档保留最近 5 份。',
+          switchEl(s.autoBackupWorlds !== false, (v) => save({ autoBackupWorlds: v }),
+            { label: '启动前自动备份存档' })),
       ),
 
       setSection('数据与隐私', 'database', '版本、实例、账户与配置都保存在数据目录中。',

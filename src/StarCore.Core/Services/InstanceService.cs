@@ -518,7 +518,8 @@ public static class InstanceService
         lock (SizeGate) SizeCache.Remove(instancePath);
     }
 
-    private static long DirSize(string dir)
+    /// <summary>递归统计目录体积（带缓存，见 FillStats）。存档列表也用它。</summary>
+    public static long DirSize(string dir)
     {
         if (string.IsNullOrEmpty(dir)) return 0;
 

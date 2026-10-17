@@ -405,19 +405,10 @@ public static class ContentService
 
     private static List<string> ReadWorldTags(string worldDir)
     {
-        var tags = new List<string>();
-        try
-        {
-            var level = Path.Combine(worldDir, "level.dat");
-            if (File.Exists(level))
-            {
-                // 用文件时间作为"最后游玩"的近似值，避免为了读一条时间而解析 NBT
-                var fi = new FileInfo(level);
-                tags.Add(fi.LastWriteTime.ToString("yyyy-MM-dd"));
-            }
-        }
-        catch { }
-        return tags;
+        // 交给 WorldService 解析 level.dat（游戏模式 / 版本 / 最后游玩）。
+        // 之前只给了个文件日期 —— 第 5 批把信息补全。
+        try { return WorldService.PeekTags(worldDir); }
+        catch { return []; }
     }
 
     private static string Trim(string s, int max)

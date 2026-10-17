@@ -252,6 +252,21 @@ public static class LaunchService
             ? inst.SharedGameDir!
             : inst.Path;
 
+        // 启动前自动备份有改动的存档（PCL 的招牌安全感）。备份失败不拦启动 ——
+        // 备份是保险，不是闸门，不能因为备份挂了让玩家玩不了。
+        if (SettingsService.Current.AutoBackupWorlds)
+        {
+            try { WorldService.AutoBackup(gameDir); }
+            catch (Exception ex) { Logger.Warn($"[launch] 启动前备份存档失败（不影响启动）：{ex.Message}"); }
+        }
+
+        // 按设置里的语言自动改写 options.txt 的 lang，玩家不用进游戏再翻语言列表。
+        if (SettingsService.Current.AutoGameLanguage)
+        {
+            try { ApplyGameLanguage(gameDir); }
+            catch (Exception ex) { Logger.Warn($"[launch] 写入游戏语言失败（不影响启动）：{ex.Message}"); }
+        }
+
         await RunHookAsync(inst.PreLaunchCommand, gameDir, ct);
 
         var psi = new ProcessStartInfo(plan.Java.Path)
@@ -455,6 +470,52 @@ public static class LaunchService
     }
 
     /// <summary>读版本 JSON 声明的 Java 主版本要求；没有该字段就返回 0。</summary>
+    /// <summary>
+    /// 把游戏语言写成设置里选的值。MC 的 options.txt 是 key:value 格式；
+    /// 文件不存在时（还没跑过游戏）就先写一个只含 lang 的 —— MC 启动会读它，
+    /// 并以此生成其余选项。auto = 跟随启动器界面语言。
+    /// </summary>
+    private static void ApplyGameLanguage(string gameDir)
+    {
+        var lang = SettingsService.Current.GameLanguage;
+        if (string.IsNullOrWhiteSpace(lang) || lang == "auto")
+            lang = SettingsService.Current.Language switch
+            {
+                "zh-CN" => "zh_cn",
+                "en-US" => "en_us",
+                "fr-FR" => "fr_fr",
+                "ru-RU" => "ru_ru",
+                "es-ES" => "es_es",
+                "ar-SA" => "ar_sa",
+                _ => "",
+            };
+        if (string.IsNullOrWhiteSpace(lang)) return;
+
+        Directory.CreateDirectory(gameDir);
+        var file = Path.Combine(gameDir, "options.txt");
+
+        if (File.Exists(file))
+        {
+            var lines = File.ReadAllLines(file).ToList();
+            var idx = lines.FindIndex(l => l.StartsWith("lang:", StringComparison.Ordinal));
+            if (idx >= 0)
+            {
+                if (lines[idx] == $"lang:{lang}") return; // 已经是对的，不碰文件
+                lines[idx] = $"lang:{lang}";
+            }
+            else
+            {
+                lines.Insert(0, $"lang:{lang}");
+            }
+            File.WriteAllLines(file, lines);
+        }
+        else
+        {
+            File.WriteAllLines(file, new[] { $"lang:{lang}" });
+        }
+        Logger.Info($"[launch] 游戏语言已设为 {lang}");
+    }
+
     /// <summary>
     /// 该版本是否支持 --quickPlayMultiplayer（1.20 / 23w14a 起加入）。
     /// 按版本号判断：1.20 及以上、以及 26.x 这类新版本号制都算支持；
