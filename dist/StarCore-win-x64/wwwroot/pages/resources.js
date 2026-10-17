@@ -624,8 +624,16 @@ function createDetail(el) {
       if (destroyed) return;
       detail = proj?.project ?? proj ?? null;
       versions = vers?.versions ?? (Array.isArray(vers) ? vers : []);
-      if (!selectedVersionId || !versions.some((v) => v.id === selectedVersionId)) {
-        selectedVersionId = versions[0]?.id ?? null;
+
+      // 版本与实例的兼容性校正。
+      // 两者是各自独立初始化的：selectedInstanceId 来自当前激活实例，
+      // selectedVersionId 来自资源版本列表的第一个 —— 从来没人检查过它们
+      // 是否匹配，于是会出现"选着 1.20.1 的实例、版本却是 26.4 的"这种错位，
+      // 用户一点安装就失败。切换实例时有 pick() 兜着，但"打开页面"这条路
+      // 之前没人管。
+      const compatible = compatibleVersions();
+      if (!compatible.some((v) => v.id === selectedVersionId)) {
+        selectedVersionId = compatible[0]?.id ?? versions[0]?.id ?? null;
       }
     } catch (e) {
       if (destroyed) return;

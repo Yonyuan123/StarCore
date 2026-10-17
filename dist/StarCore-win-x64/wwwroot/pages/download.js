@@ -807,6 +807,13 @@ function createLoadersPage() {
         const loader = LOADERS.find((l) => l.id === loaderId);
         const releases = getState().versions.filter((v) => v.type === 'release').slice(0, 60);
 
+        // 已选实例时，游戏版本**跟着实例走**：实例的版本才是"装到哪个游戏上"的
+        // 权威。右上角已经写了"安装到：某某实例"，再让用户选一次游戏版本，
+        // 既重复，还会造出「实例是 26.3、却往 1.21.1 上装加载器」的错位。
+        const gameFixed = !!inst?.versionId;
+        const fixedGame = inst?.versionId ?? '';
+        if (gameFixed && gameVersion !== fixedGame) gameVersion = fixedGame;
+
         const gameSel = customSelect({
           value: gameVersion ?? '',
           ariaLabel: '游戏版本',
@@ -825,6 +832,26 @@ function createLoadersPage() {
           onChange: (v) => { loaderVersion = v; },
         });
         loaderSel.disabled = true;
+
+        if (gameFixed) loadLoaderVersions(loaderSel, loaderId);
+
+        // 游戏版本栏：锁定时显示只读值（样式与下拉一致，但一眼能看出"不可改"）
+        const gameField = gameFixed
+          ? h('div', { class: 'field grow', style: { minWidth: '200px' } },
+              h('label', { class: 'field__label', text: '游戏版本' }),
+              h('div', {
+                style: {
+                  padding: '9px 12px',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--r-md)',
+                  background: 'var(--hover)',
+                  fontSize: 'var(--fs-sm)',
+                  color: 'var(--text-2)',
+                },
+                text: `${fixedGame}（来自实例 ${instanceName(inst)}）`,
+              }))
+          : h('div', { class: 'field grow', style: { minWidth: '200px' } },
+              h('label', { class: 'field__label', text: '游戏版本' }), gameSel);
 
         return h('div', { class: 'install-panel', style: { marginTop: 'var(--sp-8)' } },
           h('div', { style: { fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-medium)' },
@@ -846,8 +873,7 @@ function createLoadersPage() {
                 h('span', { text: '会一并安装与该游戏版本匹配的 Fabric API（大多数 Fabric 模组的前提）' }))
             : null,
           h('div', { class: 'row', style: { gap: 'var(--sp-6)', marginTop: 'var(--sp-6)', flexWrap: 'wrap' } },
-            h('div', { class: 'field grow', style: { minWidth: '200px' } },
-              h('label', { class: 'field__label', text: '游戏版本' }), gameSel),
+            gameField,
             h('div', { class: 'field grow', style: { minWidth: '200px' } },
               h('label', { class: 'field__label', text: '加载器版本' }), loaderSel),
           ),
@@ -862,9 +888,16 @@ function createLoadersPage() {
       }
 
       async function doInstall(inst, loader, gameSel, loaderSel) {
-        const versionId = gameSel.value;
+        // 已选实例时以实例的版本为准（面板上也不再出现选择框）
+        const versionId = inst?.versionId || gameSel.value;
         if (!versionId) {
-          toast({ title: '请先选择游戏版本', desc: '加载器要装在一个具体的游戏版本上。', kind: 'warning' });
+          toast({
+            title: inst && !inst.versionId ? '这个实例还没有游戏版本' : '请先选择游戏版本',
+            desc: inst && !inst.versionId
+              ? '先在实例页给它装一个游戏版本，再回来安装加载器。'
+              : '加载器要装在一个具体的游戏版本上。',
+            kind: 'warning',
+          });
           return;
         }
         const lv = loaderSel.value || null;
