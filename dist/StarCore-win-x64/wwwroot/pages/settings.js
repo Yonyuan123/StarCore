@@ -674,6 +674,41 @@ function mountJava(el) {
         j.valid ? chip('已就绪', { variant: 'success' }) : chip('不可用', { variant: 'danger' }),
       ),
       h('div', { class: 'row-item__trail' },
+        // 运行自检：文件在 ≠ 能跑（缺运行库、架构不对都会到启动游戏时才炸）。
+        // 实测 java -version，把失败提前到列表页。
+        iconButton('activity', {
+          size: 'sm', tip: '运行自检',
+          onClick: async (e) => {
+            const btn = e.currentTarget;
+            btn.disabled = true;
+            toast({ title: '正在自检…', desc: j.path, kind: 'neutral', timeout: 4000 });
+            try {
+              const r = await invoke('java.test', { path: j.path });
+              if (r?.ok) {
+                toast({
+                  title: '自检通过，可正常启动游戏',
+                  desc: (r.output ?? '').split('\n').find((l) => l.trim()) ?? j.path,
+                  kind: 'success', timeout: 12000,
+                });
+              } else {
+                dialog({
+                  title: '自检失败', icon: 'alert-triangle', width: 560,
+                  body: h('div', { class: 'col', style: { gap: 'var(--sp-4)' } },
+                    h('div', { text: `这个 Java 无法运行。原因：${r?.error ?? '进程返回非零退出码'}` }),
+                    h('div', { class: 'field' },
+                      h('label', { class: 'field__label', text: '原始输出' }),
+                      h('pre', { class: 'mono', style: { fontSize: 'var(--fs-xs)', whiteSpace: 'pre-wrap', maxHeight: '220px', overflow: 'auto', background: 'var(--hover)', padding: 'var(--sp-3)', borderRadius: 'var(--r-md)' }, text: r?.output || '(无输出)' })),
+                  ),
+                  actions: [{ label: '知道了', variant: 'primary', value: 'ok' }],
+                });
+              }
+            } catch (e2) {
+              toast({ title: '自检失败', desc: e2?.message ?? String(e2), kind: 'danger' });
+            } finally {
+              btn.disabled = false;
+            }
+          },
+        }),
         iconButton('trash-2', { size: 'sm', tip: '移除', onClick: () => removeJava(j) }),
       ),
     );

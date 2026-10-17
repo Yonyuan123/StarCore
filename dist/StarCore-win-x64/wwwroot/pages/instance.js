@@ -769,7 +769,29 @@ function mountOverview(el) {
         h('div', { class: 'set-section__desc', text: '这些参数只作用于当前实例。' }),
         h('div', { class: 'set-row' },
           h('div', { class: 'grow' }, h('div', { class: 'set-row__label', text: '最大内存' }), h('div', { class: 'set-row__desc', text: `本机共 ${(getState().app?.totalMemoryMb ?? 0) / 1024 || '?'} GB。分配给游戏的内存越大，能装的模组越多，但留给系统要留足余量。` })),
-          h('div', { class: 'set-row__control' }, memSlider, memLabel)),
+          h('div', { class: 'set-row__control' },
+            // 内存自动推荐（HMCL 的做法）：原版 25%，有模组按数量给到 37.5%~50%。
+            button('推荐', {
+              variant: 'ghost', size: 'sm',
+              onClick: async () => {
+                const total = getState().app?.totalMemoryMb ?? 8192;
+                const mods = inst.modCount ?? 0;
+                const round = (mb) => Math.max(2048, Math.round(mb / 1024) * 1024);
+                const cap = Math.max(4096, total);
+                const rec = Math.min(cap, mods >= 100 ? round(total * 0.5)
+                                            : mods > 0   ? round(total * 0.375)
+                                            : Math.min(4096, round(total * 0.25)));
+                memSlider.value = String(rec);
+                memSlider.dispatchEvent(new Event('input'));
+                memLabel.textContent = `${(rec / 1024).toFixed(1)} GB`;
+                toast({
+                  title: `推荐 ${(rec / 1024).toFixed(1)} GB`,
+                  desc: mods > 0 ? `按 ${mods} 个模组估算；点「保存」生效` : '原版实例；点「保存」生效',
+                  kind: 'neutral', timeout: 6000,
+                });
+              },
+            }),
+            memSlider, memLabel)),
         h('div', { class: 'set-row' },
           h('div', { class: 'grow' }, h('div', { class: 'set-row__label', text: 'Java 运行时' }), h('div', { class: 'set-row__desc', text: '不同游戏版本对 Java 版本有要求，留空则由启动器自动匹配。' })),
           h('div', { class: 'set-row__control' }, javaSel)),
@@ -1032,14 +1054,43 @@ function mountAdvanced(el) {
     if (!inst) { fill(scroll, emptyState({ icon: 'boxes', title: '没有选中的实例' })); return; }
 
     const argsIn = h('textarea', { class: 'textarea', rows: '4', placeholder: '-XX:+UseG1GC -Dfile.encoding=UTF-8' });
+    let preLaunchIn = null;
+    let postLaunchIn = null;
     argsIn.value = inst.jvmArgs ?? '';
     const gameArgsIn = h('textarea', { class: 'textarea', rows: '3', placeholder: '传给游戏本身的参数，例如 --demo' });
     gameArgsIn.value = inst.gameArgs ?? '';
+
+    // JVM 参数模板：让用户有"一键起点"而不是从零手写。
+    // 三档覆盖绝大多数场景；选了模板只是填入文本框，仍要点「保存」。
+    const JVM_TEMPLATES = [
+      {
+        name: 'G1GC（通用推荐）',
+        value: '-XX:+UseG1GC -XX:+ParallelRefProcEnabled -XX:MaxGCPauseMillis=200 '
+             + '-XX:+UnlockExperimentalVMOptions -XX:+DisableExplicitGC '
+             + '-XX:G1NewSizePercent=30 -XX:G1MaxNewSizePercent=40 '
+             + '-XX:G1HeapRegionSize=8M -XX:G1ReservePercent=20 -Dfile.encoding=UTF-8',
+      },
+      {
+        name: 'ZGC（低延迟，Java 17+）',
+        value: '-XX:+UseZGC -XX:+ZGenerational -XX:+UnlockExperimentalVMOptions -Dfile.encoding=UTF-8',
+      },
+      {
+        name: '兼容模式（老机器）',
+        value: '-XX:+UseSerialGC -Xss1M -Dfile.encoding=UTF-8',
+      },
+    ];
 
     fill(scroll, h('div', { class: 'page__inner', style: { maxWidth: '820px' } },
       h('div', { class: 'set-section' },
         h('div', { class: 'set-section__title' }, icon('terminal', 'md'), h('span', { text: 'JVM 参数' })),
         h('div', { class: 'set-section__desc', text: '会追加到默认参数之后。不确定就不要改。' }),
+        h('div', { class: 'row', style: { gap: 'var(--sp-3)', flexWrap: 'wrap', marginBottom: 'var(--sp-3)' } },
+          h('span', { class: 'dim', style: { fontSize: 'var(--fs-xs)', alignSelf: 'center' }, text: '模板：' }),
+          ...JVM_TEMPLATES.map((t) => button(t.name, {
+            variant: 'secondary', size: 'sm',
+            onClick: () => { argsIn.value = t.value; toast({ title: `已填入模板：${t.name}`, desc: '点「保存」生效', kind: 'neutral', timeout: 5000 }); },
+          })),
+        ),
         argsIn,
       ),
       h('div', { class: 'set-section' },
@@ -1050,13 +1101,16 @@ function mountAdvanced(el) {
         h('div', { class: 'set-section__title' }, icon('wrench', 'md'), h('span', { text: '启动前 / 后命令' })),
         h('div', { class: 'set-section__desc', text: '可用于自动打开加速器、同步存档等。留空则不执行。' }),
         h('div', { class: 'col', style: { gap: 'var(--sp-5)' } },
-          h('input', { class: 'input mono', placeholder: '启动前命令', value: inst.preLaunchCommand ?? '' }),
-          h('input', { class: 'input mono', placeholder: '启动后命令', value: inst.postLaunchCommand ?? '' }),
+          (preLaunchIn = h('input', { class: 'input mono', placeholder: '启动前命令', value: inst.preLaunchCommand ?? '' })),
+          (postLaunchIn = h('input', { class: 'input mono', placeholder: '启动后命令', value: inst.postLaunchCommand ?? '' })),
         ),
       ),
       h('div', { class: 'row', style: { gap: 'var(--sp-4)' } },
         button('保存', { variant: 'primary', icon: 'check', onClick: async () => {
-          await invoke('instance.update', { id: inst.id, patch: { jvmArgs: argsIn.value, gameArgs: gameArgsIn.value } }).catch(() => {});
+          await invoke('instance.update', { id: inst.id, patch: {
+            jvmArgs: argsIn.value, gameArgs: gameArgsIn.value,
+            preLaunchCommand: preLaunchIn.value, postLaunchCommand: postLaunchIn.value,
+          } }).catch(() => {});
           toast({ title: '已保存', kind: 'success' });
         } }),
         button('恢复默认', { variant: 'ghost', icon: 'rotate-ccw', onClick: async () => {

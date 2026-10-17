@@ -201,6 +201,7 @@ public static class StarCoreHost
             "java.list" => new { javas = JavaService.List() },
             "java.scan" => new { javas = JavaService.Scan() },
             "java.validate" => new { java = JavaService.Validate(Str(p, "path") ?? "") },
+            "java.test" => await JavaService.TestAsync(Str(p, "path") ?? "", ct),
 
             // Java 自动下载：立即返回 taskId，下载在后台跑。
             // 绝不能 await 完再返回 —— 一个 Java 运行时有一百多个文件，界面会卡死。

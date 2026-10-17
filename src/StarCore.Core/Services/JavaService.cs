@@ -107,6 +107,49 @@ public static class JavaService
     }
 
     /// <summary>
+    /// 实测运行 <c>java -version</c>。
+    ///
+    /// 文件存在 ≠ 能跑：路径里带非法字符、缺 VCRUNTIME、架构不对（x86 Java 在
+    /// ARM 机器上）这些都会在真正启动游戏时才炸，用户看到的是"启动失败"四字，
+    /// 完全无从下手。自检把失败提前到添加的那一刻，并给出原始输出。
+    /// 注意必须用 java.exe —— javaw 是 GUI 子系统，-version 不会产生任何输出。
+    /// </summary>
+    public static async Task<object> TestAsync(string javaExe, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(javaExe) || !File.Exists(javaExe))
+            return new { ok = false, output = "", error = "文件不存在" };
+
+        try
+        {
+            var exe = javaExe.Replace("javaw", "java", StringComparison.OrdinalIgnoreCase);
+            var psi = new System.Diagnostics.ProcessStartInfo(exe)
+            {
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+            };
+            psi.ArgumentList.Add("-version");
+
+            using var p = System.Diagnostics.Process.Start(psi);
+            if (p is null) return new { ok = false, output = "", error = "无法启动进程" };
+
+            var outputTask = p.StandardError.ReadToEndAsync(ct);
+            var outputTask2 = p.StandardOutput.ReadToEndAsync(ct);
+            await p.WaitForExitAsync(ct);
+            // java -version 把版本信息写到 stderr，这是它的历史行为
+            var output = ((await outputTask) + "\n" + (await outputTask2)).Trim();
+
+            return new { ok = p.ExitCode == 0, output, error = (string?)null };
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception ex)
+        {
+            return new { ok = false, output = "", error = ex.Message };
+        }
+    }
+
+    /// <summary>
     /// 按游戏版本推断需要的 Java 主版本。
     ///
     /// 只是**兜底**：现代版本 JSON 里都带 javaVersion.majorVersion，调用方应当优先用它。
