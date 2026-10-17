@@ -364,6 +364,9 @@ function mountHero(el) {
       skipped > 0
         ? { label: `未安装的实例（${skipped} 个）…`, icon: 'folder', onClick: () => go(SECTION, 'list') }
         : null,
+      // 重命名 / 复制 / 删除都在实例列表页卡片的"…"菜单里。
+      // 用户常在这个切换菜单里找删除 —— 给一条明确的路，比让人猜强。
+      { label: '管理实例（重命名 / 复制 / 删除）…', icon: 'settings', onClick: () => go(SECTION, 'list') },
       { label: '新建实例…', icon: 'plus', onClick: () => go(SECTION, 'list') },
       { label: '安装新版本…', icon: 'download', onClick: () => go('download') },
     ].filter(Boolean));

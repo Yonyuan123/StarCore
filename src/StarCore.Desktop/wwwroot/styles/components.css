@@ -922,6 +922,12 @@ kbd {
   background: var(--surface);
   border: 1px solid var(--border);
   box-shadow: var(--shadow-3);
+  /* 菜单内容一多（比如资源的几十个版本、实例列表）就必须能滚。
+     没有这两条，超出视口的部分既看不到也够不着 ——
+     用户看到的是"大量版本被折叠"，实际上是根本滚不动。 */
+  max-height: min(72vh, 560px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   opacity: 0;
   transform: scale(0.97) translateY(-4px);
   transform-origin: top left;
@@ -929,6 +935,20 @@ kbd {
   pointer-events: none;
 }
 .menu.is-open { opacity: 1; transform: none; pointer-events: auto; }
+/* 菜单里的位图（实例封面、版本方块）必须被压回图标尺寸。
+   coverImg() 生成的 <img> 没有类名约束，原始 PNG 有 128px，
+   直接塞进 flex 行会把整条菜单撑爆、图还溢出到菜单外面。 */
+.menu__item img {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  border-radius: 5px;
+  image-rendering: pixelated;
+  object-fit: cover;
+}
+/* 滚动条贴着圆角边缘很难看 */
+.menu::-webkit-scrollbar { width: 10px; }
+.menu::-webkit-scrollbar-thumb { background: var(--border); border-radius: 5px; border: 2px solid var(--surface); }
 
 .menu__item {
   display: flex;

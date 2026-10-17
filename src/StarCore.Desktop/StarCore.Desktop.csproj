@@ -24,10 +24,10 @@
   <PropertyGroup>
     <AssemblyVersion>1.0.1.0</AssemblyVersion>
     <FileVersion>1.0.1.0</FileVersion>
-    <Product>StarCore</Product>
+    <Product>StarCore Launcher</Product>
     <Company>StarCore Project</Company>
     <Copyright>Copyright © 2026 StarCore Project. Minecraft 为 Mojang Studios 商标，本项目与其无隶属关系。</Copyright>
-    <Description>StarCore —— 现代化 Minecraft 启动器</Description>
+    <Description>StarCore Launcher —— 现代化 Minecraft 启动器</Description>
   </PropertyGroup>
 
   <ItemGroup>

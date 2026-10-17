@@ -1,6 +1,6 @@
-# StarCore
+# StarCore Launcher（SCL 启动器）
 
-> 现代化、开源、跨平台的 Minecraft 启动器。
+> 现代化、开源的 Minecraft 启动器。
 
 [![build](https://github.com/Yonyuan123/StarCore/actions/workflows/build.yml/badge.svg)](https://github.com/Yonyuan123/StarCore/actions/workflows/build.yml)
 [![release](https://img.shields.io/github/v/release/Yonyuan123/StarCore?include_prereleases&label=release)](https://github.com/Yonyuan123/StarCore/releases/latest)
