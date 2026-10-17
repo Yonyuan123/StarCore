@@ -14,6 +14,11 @@ on:
   push:
     tags: ['v*']
   workflow_dispatch:
+    inputs:
+      tag:
+        description: '要发布的标签（例如 v1.0.0）。用于在不重推标签的情况下重跑发版。'
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -67,67 +72,60 @@ jobs:
           test -f out/selfcontained/wwwroot/index.html
           test -f out/selfcontained/StarCore.exe
 
+      # 打包与校验都用 _tools/ 下的脚本，与本地跑的是同一份逻辑。
+      # 之所以不用 7z：它在 Windows 上写出的 zip 条目名用反斜杠
+      # （StarCore-win-x64\wwwroot\index.html），在 macOS / Linux 上解压会变成一个
+      # 带怪名字的单文件。zipfile 写出的恒是标准 `/`。
       - name: 打包
         shell: bash
         run: |
           set -euo pipefail
-          cd out/selfcontained
-
-          # 优先 7z（压缩率高、Windows runner 自带）；没有就退回 PowerShell 的
-          # Compress-Archive。两条路都失败就明确报错退出，绝不产出一个空的资产 ——
-          # 发版失败要看得见，而不是发一个 0 字节的 zip 出去。
-          if command -v 7z > /dev/null 2>&1; then
-            echo "使用 7z 打包"
-            7z a -tzip ../../out/StarCore-win-x64-selfcontained.zip . > /dev/null
-          else
-            echo "未找到 7z，改用 Compress-Archive"
-            powershell -NoProfile -Command \
-              "Compress-Archive -Path 'out/selfcontained/*' -DestinationPath 'out/StarCore-win-x64-selfcontained.zip' -Force"
-          fi
-
-          cd ../..
-          test -f out/StarCore-win-x64-selfcontained.zip
-          SIZE=$(stat -c %s out/StarCore-win-x64-selfcontained.zip)
-          echo "压缩包大小：$((SIZE/1024/1024)) MB"
-          if [ "$SIZE" -lt 10485760 ]; then
-            echo "::error::压缩包小于 10MB，自包含包不可能这么小，打包步骤有问题"
-            exit 1
-          fi
+          python _tools/make-package.py out/selfcontained \
+            out/StarCore-win-x64-selfcontained.zip \
+            --prefix StarCore-win-x64
           ls -lh out/*.zip
 
-      - name: 校验压缩包里确实有可执行文件与界面资源
+      # 这一步曾经是这样写的：`7z l <zip> | grep 'wwwroot/index.html'` ——
+      # 7z 列出的条目名用反斜杠，正斜杠的 grep 永远匹配不上，于是在 CI 上
+      # 必然失败（本地没 7z 所以从没复现过）。现在判定逻辑在
+      # _tools/verify-package.py 里，直接读 zip 条目名，与打包器无关。
+      # 它还会断言包里真的带运行时 —— 防止把「需要装 .NET」的版本当成
+      # 自包含版发出去，那种错只有在别人的机器上才会暴露。
+      - name: 校验压缩包内容
         shell: bash
-        run: |
-          set -euo pipefail
-          if command -v 7z > /dev/null 2>&1; then
-            7z l out/StarCore-win-x64-selfcontained.zip > /tmp/ziplist.txt
-          else
-            powershell -NoProfile -Command \
-              "Add-Type -A System.IO.Compression.FileSystem; [IO.Compression.ZipFile]::OpenRead('out/StarCore-win-x64-selfcontained.zip').Entries | ForEach-Object { \$_.FullName }" > /tmp/ziplist.txt
-          fi
-          grep -q 'StarCore.exe' /tmp/ziplist.txt || { echo "::error::压缩包里没有 StarCore.exe"; exit 1; }
-          grep -q 'wwwroot/index.html' /tmp/ziplist.txt || { echo "::error::压缩包里没有界面资源"; exit 1; }
-          echo "包内文件数：$(wc -l < /tmp/ziplist.txt)"
+        run: python _tools/verify-package.py out/StarCore-win-x64-selfcontained.zip
 
       - name: 创建 Release 并上传
         uses: softprops/action-gh-release@v2
         with:
+          # push tag 时取标签名；手动重跑时取输入的标签。
+          tag_name: ${{ inputs.tag || github.ref_name }}
           files: out/StarCore-win-x64-selfcontained.zip
           generate_release_notes: true
           draft: false
           body: |
             ## 下载
 
-            下载下面的 `StarCore-win-x64-selfcontained.zip`，解压后双击 `StarCore.exe` 即可，
-            **无需安装 .NET 或任何运行时**。
+            `StarCore-win-x64-selfcontained.zip` —— 解压后进入 `StarCore-win-x64` 文件夹，
+            双击 `StarCore.exe` 即可运行。**已内置 .NET 运行时，无需另行安装任何环境。**
 
-            > 界面依赖 WebView2 运行时。Windows 10/11 通常已自带；若提示缺失，
-            > 安装一次 [WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/) 即可。
+            ## 系统要求
+
+            - Windows 10 / 11（64 位）
+            - 界面基于 WebView2。Win10/11 通常已自带；若提示缺失，安装一次
+              [WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/) 即可
+
+            ## 已知限制
+
+            微软账户登录需要 Mojang 的 API 允许列表审核，通过前 `login_with_xbox` 会返回 403。
+            离线账户与其余功能不受影响，详见 README 的「已知限制」一节。
 
             ## 校验
 
-            介意来源的话，可以直接用源码自行构建：
+            介意来源的话，可以直接拉源码自行构建（需要 .NET 10 SDK）：
+
             ```
-            ./build.sh Release run
+            ./publish.sh
             ```
-            完整构建说明见仓库 README。
+
+            仓库 `dist/` 目录里也放了一份可直接运行的构建产物，同样无需安装运行时。

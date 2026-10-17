@@ -1,0 +1,379 @@
+/* ============================================================================
+   StarCore · 令牌层 (tokens.css)
+   ----------------------------------------------------------------------------
+   所有颜色、字号、间距、圆角、阴影、动效都只在这里定义一次。
+   组件层禁止出现裸色值 —— 这是整套界面的纪律。
+
+   ── 配色方向：「陶土与松墨」──────────────────────────────────────────────
+   刻意避开"白底 + Material 蓝"这个 AI 生成界面的默认值。脱开它的关键不是
+   换深浅，而是换色相对位：
+     · 底色是带黄调的暖纸，不是冷白；
+     · 卡片是奶油白，与底色形成温度差，而不是纯白压在冷灰上；
+     · 强调色是有材质感的陶土橘，只用在唯一的关键动作上；
+     · 次级点缀用松绿，与暖色形成冷暖对位，而不是同色相的深浅交替。
+
+   ── 三套开关 ─────────────────────────────────────────────────────────
+     data-theme   light | dark
+     data-motion  off | subtle | full     动效强度（默认 subtle）
+     data-perf    low | mid | high        渲染开销（软件渲染时自动降到 low）
+   三者都由 JS 写在 <html> 上，CSS 只做条件响应。
+   ========================================================================== */
+
+/* ---------------------------------------------------------------------------
+   1. 字体
+   展示字用 Bricolage Grotesque（有性格的现代 grotesque，负责辨识度），
+   正文用 Noto Sans SC（中文屏显质量最高的一套开源黑体），
+   等宽用 JetBrains Mono（版本号 / 日志 / JVM 参数，需要 tabular figures）。
+   --------------------------------------------------------------------------- */
+
+@font-face {
+  font-family: "Bricolage Grotesque";
+  src: url("../assets/fonts/bricolage-grotesque.woff2") format("woff2-variations"),
+       url("../assets/fonts/bricolage-grotesque.woff2") format("woff2");
+  font-weight: 200 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Noto Sans SC";
+  src: url("../assets/fonts/noto-sans-sc-400.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Noto Sans SC";
+  src: url("../assets/fonts/noto-sans-sc-500.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Noto Sans SC";
+  src: url("../assets/fonts/noto-sans-sc-700.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("../assets/fonts/jetbrains-mono.woff2") format("woff2-variations"),
+       url("../assets/fonts/jetbrains-mono.woff2") format("woff2");
+  font-weight: 100 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  --font-display: "Bricolage Grotesque", "Noto Sans SC", "Microsoft YaHei UI", sans-serif;
+  --font-ui: "Noto Sans SC", "Microsoft YaHei UI", "PingFang SC", "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", "Cascadia Mono", Consolas, "Courier New", monospace;
+}
+
+/* ---------------------------------------------------------------------------
+   2. 颜色 —— 浅色（默认）：暖纸 + 奶油
+   --------------------------------------------------------------------------- */
+
+:root,
+[data-theme="light"] {
+  color-scheme: light;
+
+  /* 底色层：越靠上层越亮，且都带一点黄调 */
+  --bg: #f4f1ea;
+  --bg-grad-a: rgba(255, 252, 244, 0.9);
+  --bg-grad-b: rgba(255, 252, 244, 0);
+
+  --surface: #fffdf8;          /* 卡片：奶油白，比底色亮且更黄 */
+  --surface-2: #faf7f0;
+  --surface-3: #f0ece2;
+  --surface-sunken: #e7e2d6;   /* 凹陷槽：搜索框、分段控件底 */
+
+  /* 玻璃层：导航与浮动面板 */
+  --glass: rgba(255, 253, 248, 0.86);
+  --glass-strong: rgba(255, 253, 248, 0.96);
+  --glass-border: rgba(255, 255, 255, 0.7);
+
+  /* 描边：用暖色阴影而不是纯黑加透明 —— 后者会让整套界面发灰发脏 */
+  --border: rgba(58, 48, 34, 0.11);
+  --border-strong: rgba(58, 48, 34, 0.2);
+  --border-inset: rgba(255, 255, 255, 0.9);
+
+  /* 文字：暖墨而非纯黑 */
+  --text: #211e19;
+  --text-2: #5c564b;
+  --text-3: #8c8577;
+  --text-4: #b3ab9b;
+  --text-on-accent: #ffffff;
+
+  --hover: rgba(58, 48, 34, 0.05);
+  --active: rgba(58, 48, 34, 0.09);
+  --selected: rgba(58, 48, 34, 0.06);
+
+  /* 语义色：全部取自然材质的调子，不用刺目的纯色 */
+  --success: #3e7f5c;
+  --warning: #a9791f;
+  --danger: #b33a2e;
+  --info: #4a5fa5;
+
+  /* 阴影：投影带暖色而不是纯黑，卡片才"浮"得自然 */
+  --shadow-1: 0 1px 2px rgba(74, 58, 36, 0.05), 0 1px 3px rgba(74, 58, 36, 0.05);
+  --shadow-2: 0 2px 6px rgba(74, 58, 36, 0.07), 0 8px 20px -6px rgba(74, 58, 36, 0.13);
+  --shadow-3: 0 4px 12px rgba(74, 58, 36, 0.09), 0 24px 56px -12px rgba(74, 58, 36, 0.22);
+  --shadow-hero: 0 10px 30px -8px rgba(40, 30, 18, 0.3);
+  --shadow-accent: 0 6px 20px -5px color-mix(in oklab, var(--accent) 38%, transparent);
+
+  --scrim: rgba(30, 24, 16, 0.42);
+
+  --hero-scrim-top: rgba(26, 20, 12, 0.3);
+  --hero-scrim-bottom: rgba(26, 20, 12, 0.66);
+  --on-hero: #fffdf8;
+  --on-hero-dim: rgba(255, 253, 248, 0.78);
+
+  --grain-opacity: 0.03;
+  --grain-blend: multiply;
+}
+
+/* ---------------------------------------------------------------------------
+   3. 颜色 —— 深色：暖黑，不是蓝黑
+   --------------------------------------------------------------------------- */
+
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bg: #16130f;
+  --bg-grad-a: rgba(255, 244, 224, 0.05);
+  --bg-grad-b: rgba(255, 244, 224, 0);
+
+  --surface: #201c16;
+  --surface-2: #272219;
+  --surface-3: #302a20;
+  --surface-sunken: #191510;
+
+  --glass: rgba(32, 28, 22, 0.86);
+  --glass-strong: rgba(32, 28, 22, 0.96);
+  --glass-border: rgba(255, 244, 224, 0.08);
+
+  --border: rgba(255, 244, 224, 0.1);
+  --border-strong: rgba(255, 244, 224, 0.2);
+  --border-inset: rgba(255, 244, 224, 0.06);
+
+  --text: #f3eee3;
+  --text-2: #a89f8d;
+  --text-3: #7d7566;
+  --text-4: #595245;
+  --text-on-accent: #ffffff;
+
+  --hover: rgba(255, 244, 224, 0.06);
+  --active: rgba(255, 244, 224, 0.11);
+  --selected: rgba(255, 244, 224, 0.08);
+
+  --success: #4f9c73;
+  --warning: #c49443;
+  --danger: #d0654f;
+  --info: #7387c9;
+
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.42);
+  --shadow-2: 0 2px 8px rgba(0, 0, 0, 0.46), 0 10px 24px -8px rgba(0, 0, 0, 0.56);
+  --shadow-3: 0 6px 16px rgba(0, 0, 0, 0.5), 0 28px 64px -14px rgba(0, 0, 0, 0.7);
+  --shadow-hero: 0 12px 36px -8px rgba(0, 0, 0, 0.62);
+  --shadow-accent: 0 6px 22px -5px color-mix(in oklab, var(--accent) 44%, transparent);
+
+  --scrim: rgba(0, 0, 0, 0.62);
+
+  --hero-scrim-top: rgba(10, 8, 6, 0.28);
+  --hero-scrim-bottom: rgba(10, 8, 6, 0.7);
+  --on-hero: #fffdf8;
+  --on-hero-dim: rgba(255, 253, 248, 0.74);
+
+  --grain-opacity: 0.04;
+  --grain-blend: overlay;
+}
+
+/* ---------------------------------------------------------------------------
+   4. 强调色推导
+   --accent-base 由 JS 写入。下面全部由它推导，
+   所以在 JS 里改一个值即可完成全站换肤。
+   --------------------------------------------------------------------------- */
+
+:root {
+  --accent-base: #c2603a;
+
+  --accent: var(--accent-base);
+  --accent-hover: color-mix(in oklab, var(--accent-base) 88%, var(--text));
+  --accent-active: color-mix(in oklab, var(--accent-base) 78%, var(--text));
+
+  /* 染色表面：只做很淡的一层，避免"整块染成主题色"的廉价感 */
+  --accent-soft: color-mix(in oklab, var(--accent-base) 11%, var(--surface));
+  --accent-softer: color-mix(in oklab, var(--accent-base) 6%, var(--surface));
+  --accent-wash: color-mix(in oklab, var(--accent-base) 4%, var(--bg));
+
+  --accent-line: color-mix(in oklab, var(--accent-base) 28%, transparent);
+  --accent-line-soft: color-mix(in oklab, var(--accent-base) 16%, transparent);
+
+  --accent-text: color-mix(in oklab, var(--accent-base) 84%, var(--text));
+
+  /* 强调色上的前景色：JS 会按亮度覆写成 #fff 或深色 */
+  --accent-ink: var(--text-on-accent);
+}
+
+/* ---------------------------------------------------------------------------
+   5. 字号 —— 1.2 模块化字阶
+   基准从 14 提到 14.5：中文在小字号下的可读性差异很明显，观感也更从容。
+   --------------------------------------------------------------------------- */
+
+:root {
+  --fs-display: 46px;
+  --fs-h1: 28px;
+  --fs-h2: 21px;
+  --fs-h3: 16.5px;
+  --fs-body: 14.5px;
+  --fs-sm: 13px;
+  --fs-xs: 12px;
+  --fs-micro: 11px;
+  --fs-nano: 10px;
+
+  --lh-tight: 1.15;
+  --lh-snug: 1.38;
+  --lh-normal: 1.62;
+  --lh-relaxed: 1.8;      /* 中文正文行高下限 */
+
+  --fw-regular: 400;
+  --fw-medium: 500;
+  --fw-semibold: 600;
+  --fw-bold: 700;
+
+  --ls-tight: -0.022em;
+  --ls-snug: -0.012em;
+  --ls-normal: 0;
+  --ls-wide: 0.04em;
+  --ls-caps: 0.1em;
+}
+
+/* ---------------------------------------------------------------------------
+   6. 间距 —— 整体比上一版更松一档，留白是"心情舒畅"的主要来源
+   --------------------------------------------------------------------------- */
+
+:root {
+  --sp-0: 0;
+  --sp-1: 2px;
+  --sp-2: 4px;
+  --sp-3: 6px;
+  --sp-4: 8px;
+  --sp-5: 12px;
+  --sp-6: 16px;
+  --sp-7: 20px;
+  --sp-8: 26px;
+  --sp-9: 34px;
+  --sp-10: 44px;
+  --sp-11: 60px;
+  --sp-12: 78px;
+
+  --pad-page: 30px;
+  --pad-panel: 16px;
+  --pad-card: 20px;
+}
+
+/* ---------------------------------------------------------------------------
+   7. 圆角 —— 收敛一档。过大的圆角是"AI 卡片雨"的典型特征
+   --------------------------------------------------------------------------- */
+
+:root {
+  --r-xs: 4px;
+  --r-sm: 7px;
+  --r-md: 10px;
+  --r-lg: 13px;
+  --r-xl: 17px;
+  --r-2xl: 22px;
+  --r-pill: 999px;
+  --r-window: 0px;   /* 窗口圆角交给系统 DWM，避免两层圆角叠加出锯齿 */
+}
+
+/* ---------------------------------------------------------------------------
+   8. 动效
+   时长全部乘以 --motion-k，由 data-motion 控制：
+     off    → 瞬时
+     subtle → 1（默认，中间档）
+     full   → 1.45（更舒展）
+   --------------------------------------------------------------------------- */
+
+:root {
+  --motion-k: 1;
+
+  --dur-instant: calc(90ms * var(--motion-k));
+  --dur-fast: calc(140ms * var(--motion-k));
+  --dur-base: calc(240ms * var(--motion-k));
+  --dur-slow: calc(420ms * var(--motion-k));
+  --dur-scene: calc(620ms * var(--motion-k));
+
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-spring: cubic-bezier(0.34, 1.42, 0.42, 1);
+}
+
+[data-motion="off"] { --motion-k: 0.001; }
+
+[data-motion="full"] {
+  --motion-k: 1.45;
+  --ease-spring: cubic-bezier(0.28, 1.6, 0.36, 1);
+}
+
+/* ---------------------------------------------------------------------------
+   9. 层叠与布局常量
+   --------------------------------------------------------------------------- */
+
+:root {
+  --h-titlebar: 44px;
+  --w-rail: 72px;
+  --w-panel: 276px;
+
+  --z-content: 1;
+  --z-panel: 20;
+  --z-rail: 30;
+  --z-titlebar: 40;
+  --z-drawer: 60;
+  --z-dialog: 80;
+  --z-toast: 100;
+  --z-tooltip: 120;
+}
+
+/* ---------------------------------------------------------------------------
+   10. 渲染开销分级
+   软件光栅化时（或用户手动设为"流畅"），关掉一切会触发整屏重新合成的效果：
+   毛玻璃、混合模式、大面积模糊、颗粒叠加。
+   这些正是这套视觉里最贵的三样 —— 关掉之后帧率能翻几倍，
+   而界面骨架与配色完全不变，观感损失很小。
+   --------------------------------------------------------------------------- */
+
+[data-perf="low"] {
+  --grain-opacity: 0;
+  --glass: var(--surface);
+  --glass-strong: var(--surface);
+  --shadow-3: var(--shadow-2);
+}
+
+[data-perf="low"] .atmosphere::before,
+[data-perf="low"] .atmosphere::after,
+[data-perf="low"] .hero__tint,
+[data-perf="low"] .hero__grain,
+[data-perf="low"] .surface-grain::after {
+  display: none;
+}
+
+[data-perf="low"] * {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  mix-blend-mode: normal !important;
+}
+
+[data-perf="low"] .hero__img {
+  will-change: auto;
+  transform: none !important;
+}
+
+/* 中档：保留配色与层次，只砍掉最贵的两层 */
+[data-perf="mid"] .atmosphere::after,
+[data-perf="mid"] .hero__grain {
+  display: none;
+}
