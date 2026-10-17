@@ -180,6 +180,7 @@ public static class StarCoreHost
             "theme.mediaInfo" => MediaService.Info(),
 
             "source.info" => new { name = DownloadSource.CurrentName, kind = DownloadSource.Kind.ToString() },
+            "source.ping" => await DownloadSource.PingAllAsync(ct),
 
             /* ---- 实例 ---- */
             "instance.list" => new

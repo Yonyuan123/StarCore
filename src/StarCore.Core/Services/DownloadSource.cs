@@ -259,4 +259,87 @@ public static class DownloadSource
         }
         return false;
     }
+
+    /* ==================================================================
+       测速
+       ------------------------------------------------------------------
+       PCL 有个很受欢迎的能力：不猜哪个源快，实测。
+       这里对「官方」与「镜像」各发一个小范围请求，量出真实延迟与吞吐，
+       前端据此展示对比，并可以一键切到最快的那个。
+       ================================================================== */
+
+    /// <summary>单个源的探测结果。</summary>
+    public sealed record PingResult(string Name, string Kind, long LatencyMs, double Kbps, bool Ok, string? Error);
+
+    /// <summary>
+    /// 并行测所有候选源。探测目标用版本清单的前 256KB ——
+    /// 它是启动器启动时必拉的文件，测它最有代表性；完整下载它（10KB+）也足以
+    /// 量出吞吐差异，比纯 TCP connect 的延迟更能反映真实下载体验。
+    /// </summary>
+    public static async Task<PingResult[]> PingAllAsync(CancellationToken ct = default)
+    {
+        const string probe = "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json";
+        var candidates = Candidates(probe)
+            .Select((url, i) => (Url: url, Name: i == 0 ? CurrentName : (i == 1 ? "官方源" : $"候选{i}")))
+            .DistinctBy(x => x.Url)
+            .ToList();
+
+        var tasks = candidates.Select(async c =>
+        {
+            try
+            {
+                var sw = System.Diagnostics.Stopwatch.StartNew();
+                using var req = new HttpRequestMessage(HttpMethod.Get, c.Url);
+                req.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(0, 256 * 1024 - 1);
+                using var res = await Http.Client.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ct);
+                res.EnsureSuccessStatusCode();
+                await using var src = await res.Content.ReadAsStreamAsync(ct);
+                var buf = new byte[64 * 1024];
+                long total = 0;
+                int n;
+                while (total < 256 * 1024 && (n = await src.ReadAsync(buf, ct)) > 0) total += n;
+                sw.Stop();
+                var secs = Math.Max(sw.Elapsed.TotalSeconds, 0.001);
+                return new PingResult(c.Name, "auto", sw.ElapsedMilliseconds, total / 1024 / secs, true, null);
+            }
+            catch (OperationCanceledException) { throw; }
+            catch (Exception ex)
+            {
+                return new PingResult(c.Name, "auto", -1, 0, false, ex.Message);
+            }
+        }).ToArray();
+
+        var done = await Task.WhenAll(tasks);
+
+        // 用户配了自定义源的话也测一份，让它有同台比较的机会
+        var custom = SettingsService.Current.DownloadSource == "custom"
+            ? SettingsService.Current.CustomDownloadSource?.Trim()
+            : null;
+        if (!string.IsNullOrEmpty(custom))
+        {
+            try
+            {
+                var sw = System.Diagnostics.Stopwatch.StartNew();
+                using var req = new HttpRequestMessage(HttpMethod.Get,
+                    custom.TrimEnd('/') + "/mc/game/version_manifest_v2.json");
+                req.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(0, 256 * 1024 - 1);
+                using var res = await Http.Client.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ct);
+                res.EnsureSuccessStatusCode();
+                await using var src = await res.Content.ReadAsStreamAsync(ct);
+                var buf = new byte[64 * 1024];
+                long total = 0;
+                int n;
+                while (total < 256 * 1024 && (n = await src.ReadAsync(buf, ct)) > 0) total += n;
+                sw.Stop();
+                var secs = Math.Max(sw.Elapsed.TotalSeconds, 0.001);
+                done = done.Append(new PingResult("自定义源", "custom", sw.ElapsedMilliseconds, total / 1024 / secs, true, null)).ToArray();
+            }
+            catch (Exception ex)
+            {
+                done = done.Append(new PingResult("自定义源", "custom", -1, 0, false, ex.Message)).ToArray();
+            }
+        }
+
+        return done;
+    }
 }

@@ -756,6 +756,12 @@ function mountOverview(el) {
           h('div', { class: 'set-row__control' }, h('span', { class: 'mono', style: { fontSize: 'var(--fs-sm)' }, text: fmtBytes(inst.sizeBytes ?? 0) }))),
         h('div', { class: 'set-row' }, h('div', { class: 'grow' }, h('div', { class: 'set-row__label', text: '上次游玩' })),
           h('div', { class: 'set-row__control' }, h('span', { style: { fontSize: 'var(--fs-sm)', color: 'var(--text-2)' }, text: inst.lastPlayedAt ? fmtDateTime(inst.lastPlayedAt) : '尚未启动' }))),
+        h('div', { class: 'set-row' },
+          h('div', { class: 'grow' },
+            h('div', { class: 'set-row__label' }, '版本隔离 ', chip('已启用', { variant: 'success' })),
+            h('div', { class: 'set-row__desc', text: '这个实例拥有独立的 mods、存档、配置与资源包，与其他实例和系统 .minecraft 完全互不影响；删除实例也不会波及别的实例。' })),
+          h('div', { class: 'set-row__control' },
+            button('打开实例文件夹', { variant: 'ghost', size: 'sm', icon: 'folder-open', onClick: () => invoke('system.openInstanceFolder', { id: inst.id }).catch(() => {}) }))),
       ),
 
       h('div', { class: 'set-section' },

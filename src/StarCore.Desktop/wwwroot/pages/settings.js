@@ -195,6 +195,55 @@ function mountGeneral(el) {
             { value: 'mirror', label: '镜像源（BMCLAPI）' },
             { value: 'custom', label: '自定义' },
           ], (v) => save({ downloadSource: v }))),
+        // 测速：PCL 的经典能力。不猜哪个源快，实测。
+        // 探测目标是版本清单（启动时必拉的文件），结果能反映真实下载体验。
+        setRow('源测速', '实测各下载源的延迟与吞吐，并自动切到最快的一个。',
+          (() => {
+            const box = h('div', { class: 'col', style: { gap: 'var(--sp-2)' } });
+            const btn = button('开始测速', {
+              variant: 'secondary', size: 'sm', icon: 'gauge',
+              onClick: async () => {
+                btn.disabled = true;
+                box.replaceChildren(h('div', { class: 'dim', style: { fontSize: 'var(--fs-xs)' }, text: '正在测速（各源拉取 256KB 清单）…' }));
+                try {
+                  const list = await invoke('source.ping');
+                  const ok = list.filter((x) => x.ok).sort((a, b) => a.latencyMs - b.latencyMs);
+                  const best = ok[0];
+                  box.replaceChildren(...list.map((x) => h('div', {
+                    style: {
+                      display: 'flex', justifyContent: 'space-between', gap: 'var(--sp-4)',
+                      fontSize: 'var(--fs-xs)',
+                      color: x.ok ? 'var(--text-2)' : 'var(--danger)',
+                    },
+                  },
+                    h('span', { text: `${x.ok && best && x.name === best.name ? '★ ' : ''}${x.name}` }),
+                    h('span', { class: 'mono', text: x.ok ? `${x.latencyMs} ms · ${x.kbps.toFixed(0)} KB/s` : (x.error ?? '不可达') }),
+                  )));
+                  if (best) {
+                    // 探测结果的名称映射回设置值
+                    const v = /官方/.test(best.name) ? 'official'
+                            : /自定义/.test(best.name) ? 'custom'
+                            : 'mirror';
+                    if ((s.downloadSource ?? 'official') !== v) {
+                      save({ downloadSource: v });
+                      toast({
+                        title: `已切换到最快的源`,
+                        desc: `${best.name} · ${best.latencyMs} ms · ${best.kbps.toFixed(0)} KB/s`,
+                        kind: 'success', timeout: 7000,
+                      });
+                    } else {
+                      toast({ title: `当前源已是最快（${best.name}）`, kind: 'neutral', timeout: 5000 });
+                    }
+                  }
+                } catch (e) {
+                  box.replaceChildren(h('div', { class: 'dim', style: { fontSize: 'var(--fs-xs)' }, text: '测速失败：' + (e?.message ?? e) }));
+                } finally {
+                  btn.disabled = false;
+                }
+              },
+            });
+            return h('div', { class: 'col', style: { gap: 'var(--sp-2)' } }, btn, box);
+          })()),
         setRow('并发下载数', '同时进行的下载任务数量。太高可能被下载源限速。',
           threadSlider, threadLabel),
         setRow('代理地址', '留空表示不使用代理；仅支持 HTTP / SOCKS5。',
