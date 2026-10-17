@@ -59,8 +59,13 @@ public sealed class Settings
     /// 更新源仓库，格式 "用户名/仓库名"（GitHub）。
     /// 走 GitHub Releases 的公开接口，因此不需要任何密钥 ——
     /// 这也是选它当"更新服务器"的原因：零运维、零成本、自带版本归档。
+    ///
+    /// ⚠️ 这里必须和实际仓库一致。曾经写的是占位符 StarCore-Project/StarCore，
+    /// 结果每次检查更新都报"所有下载源均不可达"，看起来像网络问题，
+    /// 实际是仓库根本不存在。改这个值时请顺手确认
+    /// https://api.github.com/repos/&lt;值&gt;/releases/latest 能返回 200。
     /// </summary>
-    public string UpdateRepo { get; set; } = "StarCore-Project/StarCore";
+    public string UpdateRepo { get; set; } = "Yonyuan123/StarCore";
 
     public bool AutoUpdate { get; set; } = true;
 

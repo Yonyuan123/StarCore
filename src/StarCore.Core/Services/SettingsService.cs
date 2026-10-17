@@ -45,6 +45,18 @@ public static class SettingsService
         }
 
         if (_current.MaxThreads is < 1 or > 256) _current.MaxThreads = 32;
+
+        // 迁移：更新源曾经填的是占位符 StarCore-Project/StarCore，那个仓库并不存在。
+        // 已经落盘的配置会带着这个错值，所以**只改默认值没用** ——
+        // 表现是每次检查更新都报「所有下载源均不可达」，看着像网络问题，
+        // 实际是仓库名错了。这里就地修掉并落盘。
+        if (_current.UpdateRepo is "StarCore-Project/StarCore" || string.IsNullOrWhiteSpace(_current.UpdateRepo))
+        {
+            _current.UpdateRepo = new Settings().UpdateRepo;
+            Save();
+            Logger.Info($"[settings] 更新源已修正为 {_current.UpdateRepo}");
+        }
+
         _ = Http.SetProxyAsync(_current.Proxy);
     }
 
