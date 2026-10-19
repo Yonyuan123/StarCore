@@ -971,8 +971,8 @@
       "StarCore.Core/1.0.0": {
         "runtime": {
           "StarCore.Core.dll": {
-            "assemblyVersion": "1.6.1.0",
-            "fileVersion": "1.6.1.0"
+            "assemblyVersion": "1.6.2.0",
+            "fileVersion": "1.6.2.0"
           }
         }
       },

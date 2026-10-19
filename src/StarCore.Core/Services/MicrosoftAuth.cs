@@ -593,6 +593,11 @@ public static class MicrosoftAuth
         if (string.IsNullOrEmpty(xstsToken))
             return new PollResult { Status = "error", Message = "XSTS 未返回令牌。" };
 
+        // XSTS 令牌里带着 appid —— 这才是 Mojang 白名单校验的对象。
+        // 403 Invalid app registration 时，唯一能确定"到底哪个 ID 没被放行"的办法
+        // 就是把它打出来（令牌本身绝不记日志）。
+        LogXstsClaims(xstsToken);
+
         // --- Minecraft 服务 ---
         var mcJson = await PostJsonAsync(McLoginUrl, new { identityToken = $"XBL3.0 x={uhs};{xstsToken}" }, ct);
         var mcAccess = Str(mcJson, "access_token");
@@ -734,6 +739,35 @@ public static class MicrosoftAuth
     /// 于是设备码流程直接被拒。旧代码把它归到"ID 无效"，用户会一直去核对那串 GUID，
     /// 方向完全错了。
     /// </summary>
+    /// <summary>
+    /// 解析 XSTS 令牌的 claims 并记日志（只记排查需要的字段，绝不记令牌本体）。
+    /// appid 是 Mojang 用来查白名单的键；aud 是 RelyingParty；
+    /// 如果 appid 与启动器内置的 client id 不一致，就说明问题出在换票环节而不是审批。
+    /// </summary>
+    private static void LogXstsClaims(string jwt)
+    {
+        try
+        {
+            var parts = jwt.Split('.');
+            if (parts.Length < 2) return;
+
+            var payload = parts[1].Replace('-', '+').Replace('_', '/');
+            payload = payload.PadRight(payload.Length + (4 - payload.Length % 4) % 4, '=');
+            var json = Encoding.UTF8.GetString(Convert.FromBase64String(payload));
+            using var doc = JsonDocument.Parse(json);
+            var root = doc.RootElement;
+
+            string Get(string name) => root.TryGetProperty(name, out var v) ? v.ToString() : "(无)";
+
+            Logger.Info($"[msa] XSTS claims：appid={Get("appid")} aud={Get("aud")} iss={Get("iss")}");
+            Logger.Info($"[msa] 期望的 appid（启动器内置/覆盖值）= {RequireClientId()}");
+        }
+        catch (Exception ex)
+        {
+            Logger.Warn($"[msa] XSTS claims 解析失败：{ex.Message}");
+        }
+    }
+
     private static string TranslateAuthError(string json, int status)
     {
         var code = "";

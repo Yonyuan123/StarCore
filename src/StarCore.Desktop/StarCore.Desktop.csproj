@@ -22,8 +22,8 @@
   </PropertyGroup>
 
   <PropertyGroup>
-    <AssemblyVersion>1.6.1.0</AssemblyVersion>
-    <FileVersion>1.6.1.0</FileVersion>
+    <AssemblyVersion>1.6.2.0</AssemblyVersion>
+    <FileVersion>1.6.2.0</FileVersion>
     <Product>StarCore Launcher</Product>
     <Company>StarCore Project</Company>
     <Copyright>Copyright © 2026 StarCore Project. Minecraft 为 Mojang Studios 商标，本项目与其无隶属关系。</Copyright>
