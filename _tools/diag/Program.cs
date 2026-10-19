@@ -75,6 +75,7 @@ if (msaProbe)
     var probe = await StarCore.Core.Services.MicrosoftAuth.ProbeAsync();
     Verdict("个人账户端点可用（Minecraft 必须走这条）", probe.ConsumerOk);
     Verdict("组织账户端点可用（只作对照）", probe.OrganizationOk);
+    Verdict($"Mojang 已放行这个应用（{probe.ClientIdMasked}）", probe.GameApiOk);
     Console.WriteLine();
     Console.WriteLine("  结论：" + (probe.Message ?? "(无)"));
     Console.WriteLine();

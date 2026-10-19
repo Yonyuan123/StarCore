@@ -55,9 +55,19 @@ public static class MicrosoftAuth
     public static string ClientId { get; set; } = "";
 
     /// <summary>当前生效的 client id（都没有时抛出具可操作性的错误）。</summary>
+    /// <summary>
+    /// 环境变量覆盖（排查用）：STARCORE_MSA_CLIENT_ID。
+    /// 场景：申请表里登记的 ID 和内置的不一致时，用户可以先设置它验证，
+    /// 不必等启动器更新。优先级：环境变量 > 设置里的覆盖值 > 内置值。
+    /// </summary>
+    private const string ClientIdEnvVar = "STARCORE_MSA_CLIENT_ID";
+
     private static string RequireClientId()
     {
-        var id = string.IsNullOrWhiteSpace(ClientId) ? DefaultClientId : ClientId;
+        var fromEnv = Environment.GetEnvironmentVariable(ClientIdEnvVar);
+        var id = !string.IsNullOrWhiteSpace(fromEnv)
+            ? fromEnv
+            : string.IsNullOrWhiteSpace(ClientId) ? DefaultClientId : ClientId;
         if (string.IsNullOrWhiteSpace(id))
             throw new InvalidOperationException(
                 "启动器内置的微软应用身份不可用，且设置里也没有覆盖值。"
@@ -141,6 +151,15 @@ public static class MicrosoftAuth
         public bool OrganizationOk { get; set; }
         public string? DeviceCode { get; set; }
         public string? ClientIdMasked { get; set; }
+
+        /// <summary>
+        /// Mojang 是否已放行这个应用（白名单）。
+        /// 判定方式是拿一个假 XSTS 令牌打 login_with_xbox：
+        ///   403 Invalid app registration → 应用没被放行
+        ///   401 UNAUTHORIZED              → 应用层已通过，只是令牌无效（正是我们要的）
+        /// 这比只看设备码自检有用得多 —— 设备码成功不代表能换到游戏令牌。
+        /// </summary>
+        public bool GameApiOk { get; set; }
     }
 
     /// <summary>
@@ -149,11 +168,15 @@ public static class MicrosoftAuth
     /// </summary>
     public static async Task<ProbeResult> ProbeAsync(CancellationToken ct = default)
     {
-        var id = string.IsNullOrWhiteSpace(ClientId) ? DefaultClientId : ClientId;
+        var fromEnv = Environment.GetEnvironmentVariable(ClientIdEnvVar);
+        var id = !string.IsNullOrWhiteSpace(fromEnv)
+            ? fromEnv
+            : string.IsNullOrWhiteSpace(ClientId) ? DefaultClientId : ClientId;
 
         var r = new ProbeResult
         {
-            ClientIdMasked = id.Length > 8 ? $"{id[..8]}…{id[^4..]}" : "(空)",
+            ClientIdMasked = (id.Length > 8 ? $"{id[..8]}…{id[^4..]}" : "(空)")
+                             + (string.IsNullOrWhiteSpace(fromEnv) ? "" : "（来自环境变量）"),
             ConsumerOk = false,
             OrganizationOk = false,
         };
@@ -166,6 +189,21 @@ public static class MicrosoftAuth
         var org = await TryDeviceCodeAsync(
             "https://login.microsoftonline.com/organizations/oauth2/v2.0/devicecode", id, ct);
         r.OrganizationOk = org.Ok;
+
+        // Mojang 白名单探测（假令牌，不消耗用户授权）
+        try
+        {
+            var body = new StringContent(
+                "{\"identityToken\":\"XBL3.0 x=starcore-probe;probe\"}",
+                System.Text.Encoding.UTF8, "application/json");
+            using var res = await Http.Client.PostAsync(McLoginUrl, body, ct);
+            var text = await res.Content.ReadAsStringAsync(ct);
+            // 401 = 已经认我们这个应用了（只是令牌假的）；403 = 还没进白名单
+            r.GameApiOk = (int)res.StatusCode is 401 or 400;
+            if ((int)res.StatusCode == 403 && text.Contains("Invalid app registration"))
+                r.GameApiOk = false;
+        }
+        catch { r.GameApiOk = false; }
 
         if (consumer.Ok)
         {
@@ -725,6 +763,15 @@ public static class MicrosoftAuth
 
         return code switch
         {
+            // 白名单类错误：说的是"应用没被 Mojang 放行"，不是网络问题。
+            // 用户最容易误判成"还没通过审核"，所以要给出可核对的字段。
+            _ when json.Contains("Invalid app registration") =>
+                "Mojang 未放行这个 Azure 应用（403 Invalid app registration）。\n\n"
+                + "这条错误只认「Application (Client) ID」，请按顺序核对：\n"
+                + "  1. 申请表（aka.ms/mce-reviewappid）里填的应用 ID，是否与启动器内置的 ID 完全一致；\n"
+                + "  2. 审批通过后通常需要 24～48 小时才会在 API 侧生效，期间仍会返回这条错误；\n"
+                + "  3. 如果 ID 对不上，可以设置环境变量 STARCORE_MSA_CLIENT_ID=<正确的ID> 后重启启动器，\n"
+                + "     无需等新版本即可验证（设置 → 账户 → 自检登录链路 会显示当前使用的 ID 前缀）。",
             "unauthorized_client" when json.Contains("AADSTS700016") =>
                 "该 Azure 应用 ID 不存在。请在「设置 → 账户」重新填写自己注册应用的客户端 ID。",
             "invalid_client" =>

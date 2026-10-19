@@ -349,11 +349,22 @@ function mountGeneral(el) {
               try {
                 const r = await invoke('account.msProbe');
                 if (r?.ok) {
-                  toast({
-                    title: '登录链路正常',
-                    desc: `微软已受理设备码申请（用户码 ${r.userCode}）。可以直接去登录了。`,
-                    kind: 'success', timeout: 9000,
-                  });
+                  // 设备码成功只说明微软那一段通了；能不能换到游戏令牌还要看
+                  // Mojang 是否放行了这个应用 —— 这是两个完全不同的阶段。
+                  if (r.gameApiOk) {
+                    toast({
+                      title: '链路全部正常',
+                      desc: `微软设备码已受理（用户码 ${r.userCode}），Mojang 白名单也已放行（应用 ${r.clientIdMasked ?? ''}）。可以直接登录。`,
+                      kind: 'success', timeout: 12000,
+                    });
+                  } else {
+                    toast({
+                      title: '微软那段通了，Mojang 还没放行',
+                      desc: `设备码正常，但换游戏令牌会被 403 Invalid app registration 拦下。`
+                          + `应用 ${r.clientIdMasked ?? ''} 可能还没进白名单，或审批通过后尚未生效（通常 24~48 小时）。`,
+                      kind: 'warning', timeout: 0,
+                    });
+                  }
                 } else {
                   toast({ title: '登录链路不通', desc: r?.message ?? '未知原因', kind: 'danger', timeout: 0 });
                 }
